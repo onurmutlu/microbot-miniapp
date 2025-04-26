@@ -1,41 +1,56 @@
-# react-mini-app
+# microbot-miniapp
 
-react-mini-app is a simple Telegram Mini App built with ReactJS + TypeScript + Vite and uses the RippleUI library +
-TailwindCSS for UI components.
-It's intended to be used as a template for creating new Telegram Mini Apps using ReactJS and TailwindCSS.
+microbot-miniapp, Telegram botlarını yönetmek için geliştirilmiş bir Telegram Mini Uygulamasıdır. Bu uygulama ile kullanıcılar Telegram botlarını direkt olarak Telegram içerisinden yönetebilirler.
 
-## Setup
+## Özellikler
 
-To set up the project, run the following commands:
+- **Mesaj Şablonları Yönetimi**: Otomatik mesajları düzenleme, ekleme ve silme
+- **Otomatik Yanıt Kuralları**: Anahtar kelime bazlı yanıt kuralları oluşturma
+- **Grup Yönetimi**: Telegram gruplarını listeleme ve yönetme
+- **Mesaj Gönderimi**: Şablonlardan seçilen mesajları gruplara toplu gönderme
+- **DM Panel**: Kullanıcılara gelen özel mesajları yönetme (opsiyonel)
+- **JWT Tabanlı Güvenlik**: Kullanıcı kimlik doğrulama ve API istekleri için güvenli erişim
 
-#### Install dependencies:
+## Teknolojiler
+
+- **Frontend**: React, TypeScript, Vite, UnoCSS, Tailwind CSS
+- **Telegram Entegrasyonu**: @twa-dev/sdk
+- **API İletişimi**: Axios
+- **Authentication**: JWT Token
+
+## Kurulum
+
+Projeyi kurmak için aşağıdaki komutları çalıştırın:
 
 ```bash
+# Bağımlılıkları yükleyin
 npm install
 
-```
-
-#### Start the development server:
-
-```bash
+# Geliştirme sunucusunu başlatın
 npm run dev
-
 ```
 
-## Features
+## Sayfalar
 
-- Integrates in real time with the Telegram WebApp data
-  through [@vkruglikov/react-telegram-web-app](https://github.com/vkruglikov/react-telegram-web-app)
-- Uses Tailwind CSS for responsive and customizable UI components
-- Has a simple and intuitive UI
-- Adapts in real time to the theme parameters received from Telegram
-- Has a customized generator for components, pages and ui-components
+1. **MessageTemplates**: Mesaj şablonlarını yönetme
+2. **AutoReplyRules**: Otomatik yanıt kurallarını yönetme
+3. **GroupList**: Telegram gruplarını yönetme
+4. **MessageSend**: Toplu mesaj gönderimi yapma
+5. **DMPanel**: Özel mesajları yönetme (opsiyonel)
 
-## Contributing
+## API Entegrasyonu
 
-Contributions are welcome! If you have any ideas or improvements for the project, feel free to open an issue or submit a
-pull request.
+Backend API'si ile iletişim için Axios kullanılmaktadır. API endpoint'leri:
 
-## License
+- `/api/message-templates` - Mesaj şablonları için
+- `/api/auto-replies` - Otomatik yanıtlar için
+- `/api/groups` - Grup yönetimi için
+- `/api/messages/send` - Mesaj gönderimi için
 
-This project is licensed under the MIT license. See the LICENSE file for more information.
+## Katkıda Bulunma
+
+Projeye katkıda bulunmak isterseniz, lütfen bir issue açın veya pull request gönderin.
+
+## Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır. Daha fazla bilgi için LICENSE dosyasına bakın.

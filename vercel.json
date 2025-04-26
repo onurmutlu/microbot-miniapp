@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "@microbot_api_url",
+    "VITE_WS_URL": "@microbot_ws_url",
+    "VITE_TELEGRAM_BOT_TOKEN": "@microbot_telegram_bot_token"
+  }
+} 

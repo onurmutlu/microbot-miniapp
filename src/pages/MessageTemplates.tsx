@@ -1,156 +1,177 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import Telegram from '@twa-dev/sdk'
 import { Button } from '../components/ui/button'
+import { FormField } from '../components/ui/FormField'
+import { useForm, SubmitHandler, FormProvider } from 'react-hook-form'
+import api from '../utils/api'
+import { showSuccess, handleApiError, showError } from '../utils/toast'
+import { VALIDATION_RULES } from '../utils/validation'
+import TemplateGallery from '../components/TemplateGallery'
+import Telegram from '@twa-dev/sdk'
 
-interface Template {
+interface MessageTemplate {
   id: string
-  name: string
+  title: string
   content: string
-  message_type: 'broadcast' | 'mention' | 'reply'
-  interval_minutes: number
   is_active: boolean
+  category: string
+}
+
+interface TemplateFormData {
+  title: string
+  content: string
+  category: string
 }
 
 const MessageTemplates: React.FC = () => {
-  const [templates, setTemplates] = useState<Template[]>([])
-  const [newTemplate, setNewTemplate] = useState({ name: '', content: '', message_type: 'broadcast', interval_minutes: 60 })
-  const [filterType, setFilterType] = useState<'broadcast' | 'mention' | 'reply' | 'all'>('all')
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [showGallery, setShowGallery] = useState<boolean>(false)
+  
+  const methods = useForm<TemplateFormData>({
+    defaultValues: {
+      title: '',
+      content: '',
+      category: ''
+    }
+  })
 
   const fetchTemplates = async () => {
     try {
-      const res = await axios.get('/api/message-templates')
+      setLoading(true)
+      const res = await api.get('/api/message-templates')
       setTemplates(res.data)
+      showSuccess('Şablonlar başarıyla yüklendi')
       setLoading(false)
-    } catch (err) {
-      console.error('Şablonları alırken hata', err)
+    } catch (error) {
+      console.error('Mesaj şablonları alınırken hata:', error)
+      showError('Mesaj şablonları alınırken hata oluştu')
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    // Telegram SDK'sını başlat
+    // Telegram Web App'i başlat
     try {
-      Telegram.ready()
-      console.log('Telegram Web App SDK başarıyla başlatıldı!')
+      Telegram.ready();
+      console.log('Telegram SDK başarıyla başlatıldı');
       
       // Telegram kullanıcı bilgilerini al
-      const user = Telegram.initDataUnsafe?.user
+      const user = Telegram.initDataUnsafe?.user;
       if (user) {
-        console.log('Telegram kullanıcısı:', user)
+        console.log('Telegram kullanıcısı:', user);
       }
     } catch (error) {
-      console.error('Telegram SDK başlatılamadı:', error)
+      console.error('Telegram SDK başlatılırken hata oluştu:', error);
     }
     
     fetchTemplates()
   }, [])
 
-  const handleCreate = async () => {
+  const onSubmit: SubmitHandler<TemplateFormData> = async (data) => {
     try {
-      await axios.post('/api/message-templates', newTemplate)
-      setNewTemplate({ name: '', content: '', message_type: 'broadcast', interval_minutes: 60 })
+      setLoading(true)
+      const res = await api.post('/api/message-templates', data)
+      methods.reset()
+      showSuccess('Şablon başarıyla eklendi')
       fetchTemplates()
-    } catch (err) {
-      alert('Yeni şablon oluşturulamadı')
+      setShowGallery(false)
+    } catch (error) {
+      handleApiError(error, 'Şablon eklenirken hata oluştu')
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleToggle = async (id: string) => {
     try {
-      await axios.patch(`/api/message-templates/${id}/toggle`)
+      await api.patch(`/api/message-templates/${id}/toggle`)
+      showSuccess('Şablon durumu değiştirildi')
       fetchTemplates()
-    } catch (err) {
-      alert('Durum güncellenemedi')
+    } catch (error) {
+      handleApiError(error, 'Şablon durumu değiştirilirken hata oluştu')
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bu şablonu silmek istediğinize emin misiniz?')) return
+    
     try {
-      await axios.delete(`/api/message-templates/${id}`)
+      await api.delete(`/api/message-templates/${id}`)
+      showSuccess('Şablon başarıyla silindi')
       fetchTemplates()
-    } catch (err) {
-      alert('Silme işlemi başarısız')
+    } catch (error) {
+      handleApiError(error, 'Şablon silinirken hata oluştu')
     }
   }
 
-  const filteredTemplates = filterType === 'all'
-    ? templates
-    : templates.filter(t => t.message_type === filterType)
+  const handleTemplateSelect = (template: any) => {
+    methods.setValue('title', template.title);
+    methods.setValue('content', template.response);
+    methods.setValue('category', template.category);
+    setShowGallery(false);
+  }
 
   return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold">📨 Mesaj Şablonları</h1>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Mesaj Şablonları</h1>
 
-      {/* Şablon tipi filtre */}
-      <div className="flex gap-2">
-        {['all', 'broadcast', 'mention', 'reply'].map(type => (
-          <button
-            key={type}
-            onClick={() => setFilterType(type as any)}
-            className={`px-3 py-1 rounded ${filterType === type ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black'}`}
+      <FormProvider {...methods}>
+        <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-4 mb-8">
+          <FormField
+            name="title"
+            label="Şablon Adı"
+            placeholder="Örn: Karşılama Mesajı, Bilgilendirme"
+            options={VALIDATION_RULES.REQUIRED}
+          />
+          <FormField
+            name="content"
+            label="İçerik"
+            type="textarea"
+            placeholder="Mesaj şablonunun içeriği"
+            options={{
+              ...VALIDATION_RULES.REQUIRED,
+              ...VALIDATION_RULES.minLength(10)
+            }}
+          />
+          <FormField
+            name="category"
+            label="Kategori"
+            type="select"
+            options={VALIDATION_RULES.REQUIRED}
           >
-            {type.toUpperCase()}
+            <option value="">Kategori seçin</option>
+            <option value="bilgi">Bilgi</option>
+            <option value="duyuru">Duyuru</option>
+            <option value="promosyon">Promosyon</option>
+          </FormField>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {loading ? 'Kaydediliyor...' : 'Kaydet'}
           </button>
-        ))}
-      </div>
+        </form>
+      </FormProvider>
 
-      {/* Şablon ekleme formu */}
-      <div className="border rounded p-4 bg-white dark:bg-black">
-        <h2 className="font-semibold mb-2">Yeni Şablon</h2>
-        <input
-          placeholder="Şablon Adı"
-          className="border px-2 py-1 w-full mb-2"
-          value={newTemplate.name}
-          onChange={e => setNewTemplate({ ...newTemplate, name: e.target.value })}
-        />
-        <textarea
-          placeholder="Mesaj İçeriği"
-          className="border px-2 py-1 w-full mb-2"
-          value={newTemplate.content}
-          onChange={e => setNewTemplate({ ...newTemplate, content: e.target.value })}
-        />
-        <select
-          className="border px-2 py-1 w-full mb-2"
-          value={newTemplate.message_type}
-          onChange={e => setNewTemplate({ ...newTemplate, message_type: e.target.value as any })}
-        >
-          <option value="broadcast">Broadcast</option>
-          <option value="mention">Mention</option>
-          <option value="reply">Reply</option>
-        </select>
-        <input
-          type="number"
-          className="border px-2 py-1 w-full mb-2"
-          placeholder="Sıklık (dakika)"
-          value={newTemplate.interval_minutes}
-          onChange={e => setNewTemplate({ ...newTemplate, interval_minutes: parseInt(e.target.value) })}
-        />
-        <Button onClick={handleCreate}>➕ Şablon Ekle</Button>
-      </div>
-
-      {/* Şablon listesi */}
-      {loading ? (
-        <p>Yükleniyor...</p>
+      {showGallery ? (
+        <div>
+          <div className="mb-2 flex justify-between">
+            <h2 className="font-semibold">Şablon Galerisi</h2>
+            <Button variant="outline" size="sm" onClick={() => setShowGallery(false)}>
+              Kapat
+            </Button>
+          </div>
+          <TemplateGallery onSelect={handleTemplateSelect} />
+        </div>
       ) : (
-        <div className="grid gap-3">
-          {filteredTemplates.map(t => (
-            <div key={t.id} className="border rounded p-3 bg-gray-50 dark:bg-gray-800">
-              <div className="flex justify-between items-center">
-                <div>
-                  <strong>{t.name}</strong> - <em>{t.message_type}</em>
-                  <p className="text-sm text-gray-500">{t.content}</p>
-                  <p className="text-xs">⏱ {t.interval_minutes} dk | {t.is_active ? '✅ Aktif' : '⛔ Pasif'}</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Button onClick={() => handleToggle(t.id)} variant="outline">
-                    {t.is_active ? 'Pasif Yap' : 'Aktif Et'}
-                  </Button>
-                  <Button onClick={() => handleDelete(t.id)} variant="destructive">Sil</Button>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {templates.map((template) => (
+            <div key={template.id} className="border p-4 rounded">
+              <h3 className="font-bold">{template.title}</h3>
+              <p className="text-gray-600">{template.content}</p>
+              <span className="text-sm text-gray-500">{template.category}</span>
             </div>
           ))}
         </div>
