@@ -26,8 +26,8 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Kontrol Paneli</h1>
+    <div className="container mx-auto animate-fade-in">
+      <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white glass-gradient">Kontrol Paneli</h1>
 
       {isLoading && !stats ? (
         <div className="flex justify-center items-center py-12">
@@ -36,10 +36,10 @@ const Dashboard: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Sistem Durumu Kartı */}
-          <div className="glass-card bg-gradient-to-br from-[#3f51b5]/10 to-[#3f51b5]/5 p-4 rounded-xl shadow-lg">
-            <div className="mb-3 flex justify-between items-start">
+          <div className="glass-card glass-gradient-primary p-5 rounded-xl">
+            <div className="mb-4 flex justify-between items-start">
               <h2 className="text-lg font-semibold text-gray-700 dark:text-white">Sistem Durumu</h2>
-              <div className="p-2 bg-[#3f51b5]/10 rounded-full">
+              <div className="p-2 bg-[#3f51b5]/10 rounded-full inner-glass-shadow">
                 <ServerIcon className="h-5 w-5 text-[#3f51b5]" />
               </div>
             </div>
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
             <div className="mt-4 text-right">
               <Link 
                 to="/system-status" 
-                className="text-[#3f51b5] hover:text-[#303f9f] text-sm font-medium transition-colors"
+                className="glass-btn text-[#3f51b5] px-3 py-1 inline-block"
               >
                 Detayları Görüntüle →
               </Link>
@@ -64,10 +64,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Kullanıcı İstatistikleri */}
-          <div className="glass-card bg-gradient-to-br from-[#f50057]/10 to-[#f50057]/5 p-4 rounded-xl shadow-lg">
-            <div className="mb-3 flex justify-between items-start">
+          <div className="glass-card glass-gradient-secondary p-5 rounded-xl">
+            <div className="mb-4 flex justify-between items-start">
               <h2 className="text-lg font-semibold text-gray-700 dark:text-white">Kullanıcı İstatistikleri</h2>
-              <div className="p-2 bg-[#f50057]/10 rounded-full">
+              <div className="p-2 bg-[#f50057]/10 rounded-full inner-glass-shadow">
                 <UsersIcon className="h-5 w-5 text-[#f50057]" />
               </div>
             </div>
@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
             <div className="mt-4 text-right">
               <Link 
                 to="/group-list" 
-                className="text-[#f50057] hover:text-[#d81b60] text-sm font-medium transition-colors"
+                className="glass-btn text-[#f50057] px-3 py-1 inline-block"
               >
                 Grupları Yönet →
               </Link>
@@ -88,10 +88,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Mesaj İstatistikleri */}
-          <div className="glass-card bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg">
-            <div className="mb-3 flex justify-between items-start">
+          <div className="glass-card glass-gradient-success p-5 rounded-xl">
+            <div className="mb-4 flex justify-between items-start">
               <h2 className="text-lg font-semibold text-gray-700 dark:text-white">Mesaj İstatistikleri</h2>
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <div className="p-2 bg-gray-100/30 dark:bg-gray-700/30 rounded-full inner-glass-shadow">
                 <BoltIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
               </div>
             </div>
@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
             <div className="mt-4 text-right">
               <Link 
                 to="/message-templates" 
-                className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white text-sm font-medium transition-colors"
+                className="glass-btn text-gray-600 dark:text-gray-300 px-3 py-1 inline-block"
               >
                 Şablonları Yönet →
               </Link>
@@ -112,29 +112,29 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Hızlı Erişim */}
-          <div className="glass-card bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 p-4 rounded-xl shadow-lg">
-            <div className="mb-3 flex justify-between items-start">
+          <div className="glass-card p-5 rounded-xl">
+            <div className="mb-4 flex justify-between items-start">
               <h2 className="text-lg font-semibold text-gray-700 dark:text-white">Hızlı Erişim</h2>
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <div className="p-2 bg-gray-100/30 dark:bg-gray-700/30 rounded-full inner-glass-shadow">
                 <ClockIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Link 
                 to="/message-send" 
-                className="block p-3 bg-white dark:bg-gray-750 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="block p-3 glass-card hover:scale-[1.02] transition-all"
               >
                 <p className="font-medium text-gray-700 dark:text-white">Mesaj Gönder</p>
               </Link>
               <Link 
                 to="/scheduler" 
-                className="block p-3 bg-white dark:bg-gray-750 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="block p-3 glass-card hover:scale-[1.02] transition-all"
               >
                 <p className="font-medium text-gray-700 dark:text-white">Zamanlayıcı</p>
               </Link>
               <Link 
                 to="/settings" 
-                className="block p-3 bg-white dark:bg-gray-750 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="block p-3 glass-card hover:scale-[1.02] transition-all"
               >
                 <p className="font-medium text-gray-700 dark:text-white">Ayarlar</p>
               </Link>
