@@ -7,6 +7,8 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
   transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .glass-card:hover {
@@ -27,6 +29,21 @@
 .glass-gradient-success {
   background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.05));
   border: 1px solid rgba(76, 175, 80, 0.15);
+}
+
+.glass-gradient-info {
+  background: linear-gradient(135deg, rgba(3, 169, 244, 0.1), rgba(3, 169, 244, 0.05));
+  border: 1px solid rgba(3, 169, 244, 0.15);
+}
+
+.glass-gradient-warning {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.05));
+  border: 1px solid rgba(255, 152, 0, 0.15);
+}
+
+.glass-gradient-danger {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.05));
+  border: 1px solid rgba(244, 67, 54, 0.15);
 }
 
 .glass-gradient {
@@ -143,6 +160,18 @@ body.dark {
 
 .bg-success-gradient {
   background: linear-gradient(135deg, #4caf50 0%, #8bc34a 100%);
+}
+
+.bg-info-gradient {
+  background: linear-gradient(135deg, #03a9f4 0%, #4fc3f7 100%);
+}
+
+.bg-warning-gradient {
+  background: linear-gradient(135deg, #ff9800 0%, #ffb74d 100%);
+}
+
+.bg-danger-gradient {
+  background: linear-gradient(135deg, #f44336 0%, #e57373 100%);
 }
 
 /* Telegram Mini App specific styles */

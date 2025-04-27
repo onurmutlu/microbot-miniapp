@@ -1,43 +1,47 @@
-import React, { ReactNode } from 'react';
+import React from 'react';
+import { cn } from '../../utils/cn';
 
-interface GlassCardProps {
-  children: ReactNode;
-  className?: string;
-  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'danger' | 'info';
+export interface GlassCardProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'danger';
+  elevated?: boolean;
   hoverable?: boolean;
-  onClick?: () => void;
+  withAnimation?: boolean;
+  compact?: boolean;
+  withInnerShadow?: boolean;
 }
-
-const variants = {
-  default: 'bg-white/30 dark:bg-gray-800/30 border-white/20 dark:border-gray-700/20',
-  primary: 'bg-[#3f51b5]/10 dark:bg-[#3f51b5]/20 border-[#3f51b5]/20 dark:border-[#3f51b5]/30',
-  secondary: 'bg-[#f50057]/10 dark:bg-[#f50057]/20 border-[#f50057]/20 dark:border-[#f50057]/30',
-  success: 'bg-green-500/10 dark:bg-green-500/20 border-green-500/20 dark:border-green-500/30',
-  danger: 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 dark:border-red-500/30',
-  info: 'bg-blue-400/10 dark:bg-blue-400/20 border-blue-400/20 dark:border-blue-400/30',
-};
 
 const GlassCard: React.FC<GlassCardProps> = ({
   children,
-  className = '',
-  variant = 'default',
+  className,
+  variant = 'primary',
+  elevated = false,
   hoverable = false,
-  onClick
+  withAnimation = false,
+  compact = false,
+  withInnerShadow = false,
+  ...props
 }) => {
-  const hoverEffect = hoverable
-    ? 'hover:shadow-lg hover:-translate-y-1 hover:scale-[1.01] cursor-pointer'
-    : '';
-
   return (
     <div
-      className={`
-        relative overflow-hidden rounded-xl backdrop-blur-lg
-        border p-4 shadow-sm transition-all duration-300
-        ${variants[variant]}
-        ${hoverEffect}
-        ${className}
-      `}
-      onClick={onClick}
+      className={cn(
+        'glass-card rounded-lg transition-all duration-300 relative',
+        {
+          'glass-gradient-primary': variant === 'primary',
+          'glass-gradient-secondary': variant === 'secondary',
+          'glass-gradient-success': variant === 'success',
+          'glass-gradient-info': variant === 'info',
+          'glass-gradient-warning': variant === 'warning',
+          'glass-gradient-danger': variant === 'danger',
+          'shadow-lg': elevated,
+          'hover:scale-[1.01] hover:shadow-xl cursor-pointer': hoverable,
+          'animate-fade-in': withAnimation,
+          'p-3': compact,
+          'p-6': !compact,
+          'inner-glass-shadow': withInnerShadow,
+        },
+        className
+      )}
+      {...props}
     >
       {/* Gradient overlay */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-br opacity-30
@@ -45,8 +49,12 @@ const GlassCard: React.FC<GlassCardProps> = ({
         dark:from-white/10 dark:via-transparent dark:to-white/5" 
       />
       
+      {/* Glass shine effect */}
+      <div className="absolute -top-[150%] -right-[150%] w-[300%] h-[300%] -z-10 rounded-full 
+          bg-gradient-to-br from-white/10 to-transparent rotate-45 opacity-20" />
+      
       {/* Inner shadow effect */}
-      <div className="absolute inset-0 -z-10 rounded-xl inner-glass-shadow" />
+      <div className="absolute inset-0 -z-10 rounded-xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.3),inset_0_-1px_1px_rgba(0,0,0,0.05)]" />
       
       {children}
     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   HomeIcon, 
@@ -12,7 +12,9 @@ import {
   PaperAirplaneIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   XMarkIcon,
-  Bars3Icon
+  Bars3Icon,
+  ShieldCheckIcon,
+  UserIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -25,12 +27,32 @@ import {
   BookOpenIcon as BookSolidIcon,
   ServerIcon as ServerSolidIcon,
   PaperAirplaneIcon as PaperAirplaneSolidIcon,
-  ChatBubbleOvalLeftEllipsisIcon as ChatBubbleSolidIcon
+  ChatBubbleOvalLeftEllipsisIcon as ChatBubbleSolidIcon,
+  ShieldCheckIcon as ShieldCheckSolidIcon,
+  UserIcon as UserSolidIcon
 } from '@heroicons/react/24/solid'
 
 const Sidebar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
   const location = useLocation()
+  const [hasActiveSession, setHasActiveSession] = useState<boolean>(false)
+
+  useEffect(() => {
+    // Aktif oturum kontrolü
+    const checkSession = () => {
+      setHasActiveSession(localStorage.getItem('telegram_session') !== null);
+    };
+    
+    // İlk yükleme kontrolü
+    checkSession();
+    
+    // Local storage değişikliğini dinle
+    window.addEventListener('storage', checkSession);
+    
+    return () => {
+      window.removeEventListener('storage', checkSession);
+    };
+  }, []);
 
   const menuItems = [
     { 
@@ -38,6 +60,12 @@ const Sidebar: React.FC = () => {
       name: 'Kontrol Paneli', 
       icon: HomeIcon,
       activeIcon: HomeSolidIcon 
+    },
+    { 
+      path: '/sessions', 
+      name: 'Telegram Hesaplarım', 
+      icon: UserIcon,
+      activeIcon: UserSolidIcon 
     },
     { 
       path: '/message-templates', 
@@ -92,7 +120,11 @@ const Sidebar: React.FC = () => {
       path: '/settings', 
       name: 'Ayarlar', 
       icon: Cog6ToothIcon,
-      activeIcon: CogSolidIcon 
+      activeIcon: CogSolidIcon,
+      badge: !hasActiveSession ? {
+        text: "Oturum Gerekli",
+        color: "bg-red-500"
+      } : null
     }
   ]
 
@@ -109,7 +141,7 @@ const Sidebar: React.FC = () => {
     <>
       {/* Hamburger menü butonu - yalnızca mobil */}
       <button 
-        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#3f51b5]/80 text-white md:hidden"
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg glass-btn bg-[#3f51b5]/80 text-white md:hidden"
         onClick={toggleSidebar}
       >
         <Bars3Icon className="w-6 h-6" />
@@ -120,13 +152,13 @@ const Sidebar: React.FC = () => {
 
       {/* Sidebar */}
       <aside 
-        className={`fixed top-0 left-0 h-full w-72 md:w-64 bg-white/80 dark:bg-gray-800/70 backdrop-blur-xl border-r border-gray-200 dark:border-gray-700 shadow-xl transform transition-transform duration-300 ease-in-out z-50 md:translate-x-0 ${
+        className={`fixed top-0 left-0 h-full w-72 md:w-64 glass-card border-r border-gray-200/30 dark:border-gray-700/30 shadow-xl transform transition-transform duration-300 ease-in-out z-50 md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="h-full flex flex-col overflow-hidden">
           {/* Logo ve başlık */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200/30 dark:border-gray-700/30 glass-gradient-primary">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-[#3f51b5] flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -140,11 +172,21 @@ const Sidebar: React.FC = () => {
             </div>
             <button 
               onClick={toggleSidebar} 
-              className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="md:hidden p-1.5 rounded-lg hover:bg-gray-100/50 dark:hover:bg-gray-700/50"
             >
               <XMarkIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
+
+          {/* Oturum durumu */}
+          {!hasActiveSession && (
+            <div className="glass-card glass-gradient-primary border-l-4 border-red-500 p-2 m-2 rounded">
+              <div className="flex items-center text-xs text-red-700 dark:text-red-300">
+                <ShieldCheckIcon className="w-4 h-4 mr-1" />
+                <span>Telegram oturumu gerekli</span>
+              </div>
+            </div>
+          )}
 
           {/* Menü öğeleri */}
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
@@ -162,16 +204,22 @@ const Sidebar: React.FC = () => {
                     className={`
                       flex items-center px-4 py-2.5 rounded-lg transition-all duration-200
                       ${isActive 
-                        ? 'bg-[#3f51b5]/10 text-[#3f51b5] dark:bg-[#3f51b5]/20 dark:text-[#5c6bc0] font-medium' 
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'}
+                        ? 'glass-btn glass-gradient-primary font-medium' 
+                        : 'text-gray-700 dark:text-gray-300 hover:glass-btn hover:bg-gray-100/30 dark:hover:bg-gray-700/30'}
                     `}
                     onClick={() => setIsOpen(false)}
                   >
-                    <Icon className="h-5 w-5 mr-3 transition-all" />
-                    {item.name}
+                    <Icon className={`h-5 w-5 mr-3 transition-all ${isActive ? 'animate-pulse' : ''}`} />
+                    <span className="flex-grow">{item.name}</span>
+                    
+                    {item.badge && (
+                      <span className={`inline-block px-2 py-0.5 ml-2 text-xs font-medium rounded-full ${item.badge.color} text-white animate-pulse`}>
+                        {item.badge.text}
+                      </span>
+                    )}
                   </Link>
                   {item.divider && (
-                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-2 mx-3" />
+                    <div className="h-px bg-gray-200/30 dark:bg-gray-700/30 my-2 mx-3" />
                   )}
                 </React.Fragment>
               )
@@ -179,9 +227,9 @@ const Sidebar: React.FC = () => {
           </nav>
 
           {/* Sürüm bilgisi */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-t border-gray-200/30 dark:border-gray-700/30 glass-gradient-secondary">
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              MicroBot v1.0.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0]">Beta</span>
+              MicroBot v1.0.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0] animate-pulse">Beta</span>
             </p>
           </div>
         </div>
