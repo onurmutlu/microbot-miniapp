@@ -16,7 +16,7 @@ export const settingsService = {
     if (getTestMode()) {
       return mockSettingsService.getAutoStartSettings();
     }
-    return await apiService.get<AutoStartSettings>('/api/scheduler/auto-start-settings');
+    return await apiService.get<AutoStartSettings>('/scheduler/auto-start-settings');
   },
 
   /**
@@ -27,7 +27,7 @@ export const settingsService = {
     if (getTestMode()) {
       return mockSettingsService.updateAutoStartSettings(settings);
     }
-    await apiService.post('/api/scheduler/auto-start-settings', settings);
+    await apiService.post('/scheduler/auto-start-settings', settings);
   }
 };
 

@@ -6,6 +6,12 @@ import PasswordConfirmForm from './PasswordConfirmForm';
 
 interface SessionManagerProps {
   onSessionStarted?: () => void;
+  initialData?: {
+    phone?: string;
+    api_id?: string;
+    api_hash?: string;
+    phone_code_hash?: string;
+  };
 }
 
 enum SessionStep {
@@ -57,13 +63,28 @@ function getStepIndex(step: SessionStep): number {
   return steps.indexOf(step);
 }
 
-const SessionManager: React.FC<SessionManagerProps> = ({ onSessionStarted }) => {
-  const [currentStep, setCurrentStep] = useState<SessionStep>(SessionStep.START);
-  const [phone, setPhone] = useState<string>('');
+const SessionManager: React.FC<SessionManagerProps> = ({ onSessionStarted, initialData }) => {
+  const [currentStep, setCurrentStep] = useState<SessionStep>(
+    initialData?.phone && initialData?.phone_code_hash ? 
+      SessionStep.CODE_CONFIRM : 
+      SessionStep.START
+  );
+  
+  const [sessionData, setSessionData] = useState({
+    phone: initialData?.phone || '',
+    api_id: initialData?.api_id || '',
+    api_hash: initialData?.api_hash || '',
+    phone_code_hash: initialData?.phone_code_hash || ''
+  });
   
   // Telefon numarası ile oturum başlatıldığında
-  const handleCodeRequested = (phoneNumber: string) => {
-    setPhone(phoneNumber);
+  const handleCodeRequested = (phone: string, api_id: string, api_hash: string, phone_code_hash: string) => {
+    setSessionData({
+      phone,
+      api_id,
+      api_hash,
+      phone_code_hash
+    });
     setCurrentStep(SessionStep.CODE_CONFIRM);
   };
   
@@ -148,7 +169,10 @@ const SessionManager: React.FC<SessionManagerProps> = ({ onSessionStarted }) => 
       
       {currentStep === SessionStep.CODE_CONFIRM && (
         <CodeConfirmForm 
-          phone={phone} 
+          phone={sessionData.phone}
+          api_id={sessionData.api_id}
+          api_hash={sessionData.api_hash}
+          phone_code_hash={sessionData.phone_code_hash}
           onBackClick={handleBackToStart} 
           onCodeConfirmed={handleCodeConfirmed} 
         />
@@ -156,7 +180,10 @@ const SessionManager: React.FC<SessionManagerProps> = ({ onSessionStarted }) => 
       
       {currentStep === SessionStep.PASSWORD_CONFIRM && (
         <PasswordConfirmForm
-          phone={phone}
+          phone={sessionData.phone}
+          api_id={sessionData.api_id}
+          api_hash={sessionData.api_hash}
+          phone_code_hash={sessionData.phone_code_hash}
           onBackClick={handleBackToCodeConfirm}
           onSessionStarted={handleSessionStarted}
         />

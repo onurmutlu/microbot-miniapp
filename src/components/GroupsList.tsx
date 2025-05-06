@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
 import GlassCard from './ui/GlassCard';
 import Spinner from './ui/Spinner';
 import { useSession } from '../context/SessionContext';
-import { FiUsers, FiTrash2, FiToggleLeft, FiToggleRight } from 'react-icons/fi';
+import { FiUsers, FiTrash2, FiToggleLeft, FiToggleRight, FiRefreshCw, FiUserPlus } from 'react-icons/fi';
+import { listJoinedGroups, fetchJoinedGroups, fetchGroupMembers, toggleGroup, removeGroup } from '../utils/api';
 
 interface TelegramGroup {
   id: string;
@@ -12,11 +12,14 @@ interface TelegramGroup {
   memberCount: number;
   isActive: boolean;
   joinedAt: string;
+  fetchedMembersCount?: number;
 }
 
 const GroupsList: React.FC = () => {
   const [groups, setGroups] = useState<TelegramGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingAll, setIsFetchingAll] = useState(false);
+  const [fetchingMembersForGroup, setFetchingMembersForGroup] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'members'>('date');
   const { sessionId } = useSession();
 
@@ -31,7 +34,7 @@ const GroupsList: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const response = await axios.get(`/list-joined-groups?session_id=${sessionId}`);
+      const response = await listJoinedGroups(sessionId);
       setGroups(response.data);
     } catch (error) {
       toast.error('Gruplar yüklenirken bir hata oluştu');
@@ -41,15 +44,51 @@ const GroupsList: React.FC = () => {
     }
   };
 
+  const fetchAllGroups = async () => {
+    if (!sessionId) return;
+    
+    setIsFetchingAll(true);
+    try {
+      await fetchJoinedGroups(sessionId);
+      toast.success('Tüm gruplar başarıyla getirildi');
+      await fetchGroups();
+    } catch (error) {
+      toast.error('Gruplar getirilirken bir hata oluştu');
+      console.error('Tüm grupları getirme hatası:', error);
+    } finally {
+      setIsFetchingAll(false);
+    }
+  };
+
+  const fetchGroupMembers = async (groupId: string) => {
+    if (!sessionId) return;
+    
+    setFetchingMembersForGroup(groupId);
+    try {
+      const response = await fetchGroupMembers(sessionId, groupId);
+      toast.success('Grup üyeleri başarıyla getirildi');
+      
+      const fetchedMembersCount = response.data?.members_count || 0;
+      setGroups(prevGroups => 
+        prevGroups.map(group => 
+          group.id === groupId 
+            ? { ...group, fetchedMembersCount } 
+            : group
+        )
+      );
+    } catch (error) {
+      toast.error('Grup üyeleri getirilirken bir hata oluştu');
+      console.error('Grup üyeleri getirme hatası:', error);
+    } finally {
+      setFetchingMembersForGroup(null);
+    }
+  };
+
   const toggleGroupActive = async (groupId: string, currentStatus: boolean) => {
     if (!sessionId) return;
     
     try {
-      await axios.post(`/toggle-group`, {
-        session_id: sessionId,
-        group_id: groupId,
-        is_active: !currentStatus
-      });
+      await toggleGroup(sessionId, groupId, !currentStatus);
 
       setGroups(prevGroups => 
         prevGroups.map(group => 
@@ -72,7 +111,7 @@ const GroupsList: React.FC = () => {
     }
 
     try {
-      await axios.delete(`/remove-group?session_id=${sessionId}&group_id=${groupId}`);
+      await removeGroup(sessionId, groupId);
       setGroups(prevGroups => prevGroups.filter(group => group.id !== groupId));
       toast.success('Grup başarıyla silindi');
     } catch (error) {
@@ -115,26 +154,46 @@ const GroupsList: React.FC = () => {
     <GlassCard className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Telegram Grupları</h2>
-        <div className="flex items-center">
-          <span className="mr-2">Sırala:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'date' | 'name' | 'members')}
-            className="border rounded px-3 py-1 bg-transparent"
-          >
-            <option value="date">Katılma Tarihi</option>
-            <option value="name">İsim</option>
-            <option value="members">Üye Sayısı</option>
-          </select>
+        <div className="flex items-center gap-2">
           <button
-            onClick={fetchGroups}
-            className="ml-2 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-            title="Yenile"
+            onClick={fetchAllGroups}
+            disabled={isFetchingAll || !sessionId}
+            className="px-3 py-1.5 rounded-lg glass-btn flex items-center"
+            title={!sessionId ? 'Lütfen önce bir Telegram hesabı seçin' : 'Tüm grupları getir'}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
+            {isFetchingAll ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Getiriliyor...
+              </>
+            ) : (
+              <>
+                <FiRefreshCw className="mr-2" />
+                Tüm Grupları Getir
+              </>
+            )}
           </button>
+          <div className="flex items-center ml-2">
+            <span className="mr-2">Sırala:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'name' | 'members')}
+              className="border rounded px-3 py-1 bg-transparent"
+            >
+              <option value="date">Katılma Tarihi</option>
+              <option value="name">İsim</option>
+              <option value="members">Üye Sayısı</option>
+            </select>
+            <button
+              onClick={fetchGroups}
+              className="ml-2 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+              title="Yenile"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -157,8 +216,35 @@ const GroupsList: React.FC = () => {
               {getSortedGroups().map((group) => (
                 <tr key={group.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="font-medium">{group.name}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">ID: {group.id}</div>
+                    <div className="flex items-center">
+                      <div>
+                        <div className="font-medium">{group.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">ID: {group.id}</div>
+                        <div className="text-xs mt-1">
+                          {group.fetchedMembersCount !== undefined ? (
+                            <span className="text-green-600 dark:text-green-400">
+                              Getirilen üye sayısı: {group.fetchedMembersCount}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500 dark:text-gray-400">
+                              Üyeler henüz getirilmedi
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => fetchGroupMembers(group.id)}
+                        disabled={fetchingMembersForGroup === group.id || !sessionId}
+                        className="ml-3 p-1.5 rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                        title="Üyeleri Getir"
+                      >
+                        {fetchingMembersForGroup === group.id ? (
+                          <Spinner size="sm" />
+                        ) : (
+                          <FiUserPlus className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center">

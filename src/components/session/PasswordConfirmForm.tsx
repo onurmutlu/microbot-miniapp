@@ -7,12 +7,18 @@ import GlassCard from '../ui/GlassCard';
 
 interface PasswordConfirmFormProps {
   phone: string;
+  api_id?: string;
+  api_hash?: string;
+  phone_code_hash?: string;
   onBackClick: () => void;
   onSessionStarted: () => void;
 }
 
 const PasswordConfirmForm: React.FC<PasswordConfirmFormProps> = ({ 
-  phone, 
+  phone,
+  api_id = '',
+  api_hash = '',
+  phone_code_hash = '',
   onBackClick, 
   onSessionStarted 
 }) => {
@@ -42,8 +48,11 @@ const PasswordConfirmForm: React.FC<PasswordConfirmFormProps> = ({
     try {
       setIsLoading(true);
       
-      const response = await api.post('/api/auth/check-password', {
+      const response = await api.post('/telegram/password-confirm', {
+        api_id,
+        api_hash,
         phone,
+        phone_code_hash,
         password
       });
       

@@ -32,6 +32,9 @@ import {
   UserIcon as UserSolidIcon
 } from '@heroicons/react/24/solid'
 
+import { TbTemplate, TbAutomation, TbUsers, TbMessage, TbDeviceMobile, TbCalendarTime, TbBrandTelegram, TbWaveSine } from 'react-icons/tb';
+import { FiSettings, FiHome, FiServer, FiMessageSquare, FiUserPlus, FiUsers, FiSend, FiInbox, FiClock, FiRadio } from 'react-icons/fi';
+
 const Sidebar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false)
   const location = useLocation()
@@ -108,6 +111,19 @@ const Sidebar: React.FC = () => {
       name: 'Cron Rehberi', 
       icon: BookOpenIcon,
       activeIcon: BookSolidIcon,
+      divider: true
+    },
+    {
+      path: '/sse-demo',
+      name: 'SSE Demo',
+      icon: ({ className }: { className?: string }) => <TbWaveSine className={className} />,
+      activeIcon: ({ className }: { className?: string }) => <TbWaveSine className={className} />,
+    },
+    {
+      path: '/sse-client-demo',
+      name: 'SSE Rehber',
+      icon: ({ className }: { className?: string }) => <FiRadio className={className} />,
+      activeIcon: ({ className }: { className?: string }) => <FiRadio className={className} />,
       divider: true
     },
     { 

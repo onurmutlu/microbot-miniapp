@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChartBarIcon, ArrowPathIcon, CpuChipIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import { systemService, SystemStatus as SystemStatusType } from '../services/systemService';
-import { Spinner } from '../components/ui/Spinner';
+import Spinner from '../components/ui/Spinner';
 
 const SystemStatus: React.FC = () => {
   const [status, setStatus] = useState<SystemStatusType | null>(null);

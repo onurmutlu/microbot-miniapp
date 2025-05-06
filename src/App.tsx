@@ -5,10 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer } from 'react-toastify';
 import { store } from './store';
 import { useAuth } from './hooks/useAuth';
-import { useWebSocket } from './hooks/useWebSocket';
 import { runConnectionTests } from './utils/connectionTest';
-import { checkEnv } from './utils/env';
-import { setupTestModeToggle, setTestMode } from './utils/testMode';
+import { checkEnv, isMiniApp } from './utils/env';
+import { setTestMode, getTestMode } from './utils/testMode';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import MobileNavigation from './components/layout/MobileNavigation';
@@ -34,6 +33,19 @@ import 'react-toastify/dist/ReactToastify.css';
 import './styles/glass.css';
 import HomePage from './pages/HomePage';
 import WebSocketTest from './pages/WebSocketTest';
+import { ActiveSessionProvider } from './hooks/useActiveSession';
+import { useWebSocket } from './hooks/useWebSocket.ts';
+import { WebSocketProvider } from './contexts/WebSocketContext';
+import { clearAllToasts } from './utils/toast';
+import ErrorBoundary from './components/ErrorBoundary';
+import LoginPage from './pages/LoginPage';
+import api from './utils/api';
+import { UserProvider } from './context/UserContext';
+import { useUser } from './context/UserContext';
+import LoginGuard from './components/LoginGuard';
+import SSEDemo from './pages/SSEDemo';
+import SSEClientDemo from './pages/SSEClientDemo';
+import TelegramSetup from './pages/TelegramSetup';
 
 const queryClient = new QueryClient();
 
@@ -46,18 +58,27 @@ const dummyUser = {
   photo_url: 'https://i.pravatar.cc/150?img=3'
 };
 
-// Geliştirme ortamında ise test modunu etkinleştir
+// Geliştirme ortamında ise test modu ayarlarını yapılandır
 if (import.meta.env.DEV) {
-  // Test modunu etkinleştir
+  // Test modunu varsayılan olarak açık bırak
   setTestMode(true);
   
-  // Konsol üzerinden test modunu değiştirme fonksiyonunu ekle
-  setupTestModeToggle();
+  // Test modu için konsol yardımcı fonksiyonu
+  if (typeof window !== 'undefined') {
+    // Konsol üzerinden test modunu değiştirme fonksiyonunu ekle
+    (window as any).toggleTestMode = () => {
+      const newMode = !getTestMode();
+      setTestMode(newMode);
+      console.log(`Test modu: ${newMode ? 'Açık' : 'Kapalı'}`);
+      return newMode;
+    };
+  }
 }
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading, login } = useAuth();
   const { isConnected: isWsConnected } = useWebSocket();
+  const { setUser } = useUser();
 
   useEffect(() => {
     // Environment kontrolü
@@ -67,7 +88,52 @@ const AppContent: React.FC = () => {
 
     // Bağlantı testleri
     runConnectionTests();
-  }, []);
+
+    // Sayfa yüklendiğinde tüm bildirimleri temizle
+    clearAllToasts();
+
+    // MiniApp kontrolü ve initData işleme
+    if (isMiniApp() && window.Telegram?.WebApp) {
+      const initData = window.Telegram.WebApp.initData;
+      
+      // initData varsa ve oturum açılmamışsa backend'e gönder
+      if (initData && !localStorage.getItem('access_token')) {
+        api.post('/auth/telegram', { initData })
+          .then(response => {
+            if (response.data.token) {
+              localStorage.setItem('access_token', response.data.token);
+              
+              // Kullanıcı bilgilerini sakla
+              if (response.data.user) {
+                localStorage.setItem('telegram_user', JSON.stringify(response.data.user));
+                // useUser hook'u ile kullanıcı context'ini güncelle
+                const userData = response.data.user;
+                setUser(userData);
+              }
+              
+              // Auth hook ile login yap
+              login(response.data);
+            }
+          })
+          .catch(error => {
+            console.error('MiniApp authentication error:', error);
+          });
+      }
+    }
+
+    // Sayfa yeniden yüklendiğinde veya kapatıldığında bildirimleri temizle
+    const clearToastsOnAction = () => {
+      clearAllToasts();
+    };
+
+    window.addEventListener('beforeunload', clearToastsOnAction);
+    window.addEventListener('unload', clearToastsOnAction);
+
+    return () => {
+      window.removeEventListener('beforeunload', clearToastsOnAction);
+      window.removeEventListener('unload', clearToastsOnAction);
+    };
+  }, [setUser, login]);
 
   // Body'e class ekle
   useEffect(() => {
@@ -86,30 +152,7 @@ const AppContent: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#181f2a] via-[#232b3e] to-[#181f2a] p-4">
-        <div className="glass-card max-w-md w-full text-center animate-fade-in shadow-2xl border border-white/10 p-8 rounded-2xl">
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#3f51b5] to-[#5c6bc0] flex items-center justify-center shadow-lg">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 10l-4 4l6 6l4-16l-18 7l4 2l2 6l3-4"/>
-              </svg>
-            </div>
-          </div>
-          <h1 className="text-3xl font-extrabold mb-4 text-white glass-gradient drop-shadow-lg">Kimlik Doğrulama Gerekli</h1>
-          <p className="text-gray-200 mb-8">Lütfen Telegram üzerinden giriş yapın veya <span className="font-bold text-[#5c6bc0]">Test Modu</span> ile devam edin.</p>
-          <button
-            className="w-full py-3 px-6 rounded-xl glass-btn glass-gradient-primary text-white font-semibold shadow-lg transition-all duration-200 hover:shadow-[#3f51b5]/20 hover:shadow-xl"
-            onClick={() => {
-              login({ user: dummyUser, token: 'dummy-token' });
-            }}
-          >
-            Test Modu ile Devam Et
-          </button>
-        </div>
-        <TestModeIndicator />
-      </div>
-    );
+    return <LoginPage />;
   }
 
   return (
@@ -130,38 +173,205 @@ const AppContent: React.FC = () => {
           </div>
 
           <Suspense fallback={<Spinner isLoading={true} size="xl" variant="glassEffect" />}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/message-templates" element={<MessageTemplates />} />
-              <Route path="/user-settings" element={<UserSettings />} />
-              <Route path="/system-status" element={<SystemStatus />} />
-              <Route path="/dm-panel" element={<DMPanel />} />
-              <Route path="/auto-reply-rules" element={<AutoReplyRules />} />
-              <Route path="/groups" element={<GroupList />} />
-              <Route path="/join-group" element={<JoinGroupForm />} />
-              <Route path="/telegram-groups" element={<GroupsList />} />
-              <Route path="/message-send" element={<MessageSend />} />
-              <Route path="/websocket-test" element={<WebSocketTest />} />
-              <Route path="/scheduler" element={<SchedulerPage />} />
-              <Route path="/cron-guide" element={<CronGuidePage />} />
-            </Routes>
+            <ErrorBoundary>
+              <Routes>
+                {/* Korumasız Rotalar */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/telegram-setup" element={<TelegramSetup />} />
+                
+                {/* Protected Routes */}
+                <Route
+                  path="/"
+                  element={
+                    <LoginGuard>
+                      <HomePage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <LoginGuard>
+                      <Dashboard />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/message-templates"
+                  element={
+                    <LoginGuard>
+                      <MessageTemplates />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/user-settings"
+                  element={
+                    <LoginGuard>
+                      <UserSettings />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/system-status"
+                  element={
+                    <LoginGuard>
+                      <SystemStatus />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/dm-panel"
+                  element={
+                    <LoginGuard>
+                      <DMPanel />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/auto-reply-rules"
+                  element={
+                    <LoginGuard>
+                      <AutoReplyRules />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/groups"
+                  element={
+                    <LoginGuard>
+                      <GroupList />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/join-group"
+                  element={
+                    <LoginGuard>
+                      <JoinGroupForm />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/telegram-groups"
+                  element={
+                    <LoginGuard>
+                      <GroupsList />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/message-send"
+                  element={
+                    <LoginGuard>
+                      <MessageSend />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/websocket-test"
+                  element={
+                    <LoginGuard>
+                      <WebSocketTest />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/scheduler"
+                  element={
+                    <LoginGuard>
+                      <SchedulerPage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/cron-guide"
+                  element={
+                    <LoginGuard>
+                      <CronGuidePage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <LoginGuard>
+                      <UserSettings />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/sessions"
+                  element={
+                    <LoginGuard>
+                      <SessionListPage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/session/:id"
+                  element={
+                    <LoginGuard>
+                      <SessionPage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/new-session"
+                  element={
+                    <LoginGuard>
+                      <NewSessionPage />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/sse-demo"
+                  element={
+                    <LoginGuard>
+                      <SSEDemo />
+                    </LoginGuard>
+                  }
+                />
+                <Route
+                  path="/sse-client-demo"
+                  element={
+                    <LoginGuard>
+                      <SSEClientDemo />
+                    </LoginGuard>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
           </Suspense>
         </main>
       </div>
       <MobileNavigation />
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="colored"
-      />
+      <ErrorBoundary>
+        <ToastContainer
+          position="top-right"
+          autoClose={1000}
+          hideProgressBar={false}
+          newestOnTop={true}
+          closeOnClick={true}
+          rtl={false}
+          pauseOnFocusLoss={false}
+          draggable={true}
+          pauseOnHover={false}
+          theme="light"
+          limit={1}
+          closeButton={true}
+          toastStyle={{
+            border: '1px solid rgba(0,0,0,0.1)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontWeight: 'bold'
+          }}
+          style={{
+            width: 'auto',
+            maxWidth: '320px'
+          }}
+        />
+      </ErrorBoundary>
       <TestModeIndicator />
     </div>
   );
@@ -171,11 +381,17 @@ const App: React.FC = () => {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <SessionProvider>
-          <Router>
-            <AppContent />
-          </Router>
-        </SessionProvider>
+        <UserProvider>
+          <SessionProvider>
+            <ActiveSessionProvider>
+              <WebSocketProvider>
+                <Router>
+                  <AppContent />
+                </Router>
+              </WebSocketProvider>
+            </ActiveSessionProvider>
+          </SessionProvider>
+        </UserProvider>
       </QueryClientProvider>
     </Provider>
   );

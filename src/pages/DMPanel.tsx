@@ -42,7 +42,7 @@ const DMPanel: React.FC = () => {
   const fetchMessages = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/api/direct-messages')
+      const res = await api.get('/direct-messages')
       setMessages(res.data)
       setLoading(false)
       showSuccess('Mesajlar başarıyla yüklendi')

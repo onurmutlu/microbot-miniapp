@@ -45,7 +45,7 @@ const AutoReplyRules: React.FC = () => {
   const fetchRules = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/api/auto-replies')
+      const res = await api.get('/auto-replies')
       setRules(res.data)
       showSuccess('Kurallar başarıyla yüklendi')
       setLoading(false)
@@ -63,7 +63,7 @@ const AutoReplyRules: React.FC = () => {
   const onSubmit: SubmitHandler<AutoReplyFormData> = async (data) => {
     try {
       setLoading(true)
-      const res = await api.post('/api/auto-replies', data)
+      const res = await api.post('/auto-replies', data)
       reset()
       showSuccess('Kural başarıyla eklendi')
       fetchRules()
@@ -77,7 +77,7 @@ const AutoReplyRules: React.FC = () => {
 
   const handleToggle = async (id: string) => {
     try {
-      await api.patch(`/api/auto-replies/${id}/toggle`)
+      await api.patch(`/auto-replies/${id}/toggle`)
       showSuccess('Kural durumu değiştirildi')
       fetchRules()
     } catch (error) {
@@ -89,7 +89,7 @@ const AutoReplyRules: React.FC = () => {
     if (!confirm('Bu kuralı silmek istediğinize emin misiniz?')) return
     
     try {
-      await api.delete(`/api/auto-replies/${id}`)
+      await api.delete(`/auto-replies/${id}`)
       showSuccess('Kural başarıyla silindi')
       fetchRules()
     } catch (error) {
@@ -99,7 +99,7 @@ const AutoReplyRules: React.FC = () => {
 
   const handleVisualRuleSave = async (rule: any) => {
     try {
-      await api.post('/api/auto-replies', {
+      await api.post('/auto-replies', {
         keyword: rule.trigger,
         response: rule.response,
         match_type: rule.triggerType === 'text' ? 'contains' : 'regex'

@@ -24,7 +24,7 @@ export const ActiveSessionProvider: React.FC<{ children: ReactNode }> = ({ child
   const refreshActiveSession = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get('/active-session');
+      const response = await api.get('/telegram/active-session');
       setActiveSession(response.data);
     } catch (error) {
       console.error('Aktif oturum bilgisi alınamadı:', error);
@@ -58,6 +58,4 @@ export const useActiveSession = (): ActiveSessionContextType => {
     throw new Error('useActiveSession must be used within an ActiveSessionProvider');
   }
   return context;
-};
-
-export default useActiveSession; 
+}; 

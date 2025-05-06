@@ -40,7 +40,7 @@ const NewSessionForm: React.FC<NewSessionFormProps> = ({ remainingSessions }) =>
       // Telefon numarasını formatla (+ işaretini kaldır ve boşlukları sil)
       const phone = data.phone.replace(/\+/g, '').replace(/\s/g, '');
       
-      const response = await api.post('/start-login', {
+      const response = await api.post('/telegram/start-login', {
         api_id: data.api_id,
         api_hash: data.api_hash,
         phone

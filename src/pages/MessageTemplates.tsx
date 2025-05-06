@@ -43,7 +43,7 @@ const MessageTemplates: React.FC = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/api/message-templates')
+      const res = await api.get('/message-templates')
       setTemplates(res.data)
       showSuccess('Şablonlar başarıyla yüklendi')
       setLoading(false)
@@ -85,11 +85,11 @@ const MessageTemplates: React.FC = () => {
       setIsSaving(true)
       
       if (editingTemplate) {
-        await api.put(`/api/message-templates/${editingTemplate.id}`, data)
+        await api.put(`/message-templates/${editingTemplate.id}`, data)
         showSuccess('Şablon başarıyla güncellendi')
         setEditingTemplate(null)
       } else {
-        await api.post('/api/message-templates', data)
+        await api.post('/message-templates', data)
         showSuccess('Şablon başarıyla eklendi')
       }
       
@@ -105,7 +105,7 @@ const MessageTemplates: React.FC = () => {
 
   const handleToggle = async (id: string) => {
     try {
-      await api.patch(`/api/message-templates/${id}/toggle`)
+      await api.patch(`/message-templates/${id}/toggle`)
       showSuccess('Şablon durumu değiştirildi')
       fetchTemplates()
     } catch (error) {
@@ -117,7 +117,7 @@ const MessageTemplates: React.FC = () => {
     if (!confirm('Bu şablonu silmek istediğinize emin misiniz?')) return
     
     try {
-      await api.delete(`/api/message-templates/${id}`)
+      await api.delete(`/message-templates/${id}`)
       showSuccess('Şablon başarıyla silindi')
       fetchTemplates()
     } catch (error) {

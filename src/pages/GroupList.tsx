@@ -21,7 +21,7 @@ const GroupList: React.FC = () => {
   const fetchGroups = async () => {
     try {
       setLoading(true)
-      const res = await api.get('/api/groups')
+      const res = await api.get('/groups')
       setGroups(res.data)
       setLoading(false)
     } catch (error) {

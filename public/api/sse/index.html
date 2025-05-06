@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSE Test API</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    pre {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    code {
+      font-family: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+    .endpoint {
+      background-color: #f8f9fa;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+      border-left: 4px solid #3498db;
+    }
+    .method {
+      display: inline-block;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    .get {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .post {
+      background-color: #cce5ff;
+      color: #004085;
+    }
+    .delete {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .tab-container {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 20px;
+    }
+    .tab-buttons {
+      display: flex;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #ddd;
+    }
+    .tab-button {
+      padding: 10px 15px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .tab-button.active {
+      background-color: #fff;
+      border-bottom: 2px solid #3498db;
+    }
+    .tab-content {
+      display: none;
+      padding: 15px;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h1>SSE Test API</h1>
+  <p>Bu API, Telegram Mini App SSE entegrasyonunu test etmek için kullanılabilir.</p>
+
+  <div class="tab-container">
+    <div class="tab-buttons">
+      <button class="tab-button active" onclick="openTab(event, 'documentation')">Dokümantasyon</button>
+      <button class="tab-button" onclick="openTab(event, 'test-client')">Test İstemcisi</button>
+      <button class="tab-button" onclick="openTab(event, 'telegram-mock')">Telegram Simülasyonu</button>
+    </div>
+
+    <div id="documentation" class="tab-content active">
+      <h2>SSE API Endpoint'leri</h2>
+      
+      <div class="endpoint">
+        <span class="method get">GET</span>
+        <code>/api/sse/{client_id}</code>
+        <p>SSE bağlantısı kurar. <code>client_id</code> parametresi, istemciyi benzersiz şekilde tanımlar.</p>
+        <h3>Örnek:</h3>
+        <pre><code>const eventSource = new EventSource('/api/sse/client_123');</code></pre>
+      </div>
+      
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <code>/api/sse/broadcast</code>
+        <p>Tüm bağlı istemcilere bir mesaj yayınlar.</p>
+        <h3>Mesaj Şablonu:</h3>
+        <pre><code>{
+  "type": "broadcast",
+  "data": {
+    "text": "Merhaba dünya!",
+    "priority": "normal",
+    "timestamp": "2023-08-15T12:00:00Z"
+  }
+}</code></pre>
+      </div>
+      
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <code>/api/sse/subscribe/{client_id}/{topic}</code>
+        <p>Belirli bir istemciyi bir konuya abone eder.</p>
+      </div>
+      
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <code>/api/sse/publish/{topic}</code>
+        <p>Belirli bir konuya abone olan tüm istemcilere mesaj yayınlar.</p>
+        <h3>Mesaj Şablonu:</h3>
+        <pre><code>{
+  "type": "message",
+  "data": {
+    "text": "Bu bir konuya özel mesajdır.",
+    "priority": "high",
+    "timestamp": "2023-08-15T12:05:00Z"
+  }
+}</code></pre>
+      </div>
+      
+      <div class="endpoint">
+        <span class="method get">GET</span>
+        <code>/api/sse/stats</code>
+        <p>SSE sunucusu hakkında istatistikler döndürür.</p>
+      </div>
+
+      <h2>Mesaj Tipleri</h2>
+      <ul>
+        <li><strong>broadcast</strong> - Tüm istemcilere yayın</li>
+        <li><strong>message</strong> - Genel mesaj</li>
+        <li><strong>notification</strong> - Bildirim mesajı</li>
+        <li><strong>ping</strong> - Bağlantıyı canlı tutmak için kullanılır</li>
+        <li><strong>error</strong> - Hata mesajı</li>
+      </ul>
+
+      <h2>Öncelik Seviyeleri</h2>
+      <ul>
+        <li><strong>low</strong> - Düşük öncelikli mesaj</li>
+        <li><strong>normal</strong> - Normal öncelikli mesaj (varsayılan)</li>
+        <li><strong>high</strong> - Yüksek öncelikli mesaj</li>
+        <li><strong>critical</strong> - Kritik öncelikli mesaj</li>
+      </ul>
+    </div>
+
+    <div id="test-client" class="tab-content">
+      <h2>SSE Test İstemcisi</h2>
+      <p>Bu araç ile SSE bağlantılarını test edebilirsiniz.</p>
+      <div id="root"></div>
+      <script src="test.js"></script>
+    </div>
+
+    <div id="telegram-mock" class="tab-content">
+      <h2>Telegram Mini App SSE Simülasyonu</h2>
+      <p>Bu araç, Telegram Mini App ortamında SSE kullanımını simüle eder.</p>
+      <div id="telegram-root"></div>
+      <script src="telegram-mock.js"></script>
+    </div>
+  </div>
+
+  <script>
+    function openTab(evt, tabName) {
+      // Tüm tab içeriklerini gizle
+      const tabContents = document.getElementsByClassName('tab-content');
+      for (let i = 0; i < tabContents.length; i++) {
+        tabContents[i].classList.remove('active');
+      }
+      
+      // Tüm sekme düğmelerindeki active sınıfını kaldır
+      const tabLinks = document.getElementsByClassName('tab-button');
+      for (let i = 0; i < tabLinks.length; i++) {
+        tabLinks[i].classList.remove('active');
+      }
+      
+      // Seçilen sekmeyi göster ve aktif sınıfını ekle
+      document.getElementById(tabName).classList.add('active');
+      evt.currentTarget.classList.add('active');
+    }
+  </script>
+</body>
+</html> 

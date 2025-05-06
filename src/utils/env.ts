@@ -1,17 +1,30 @@
-export const checkEnv = () => {
-  const required = [
-    'VITE_API_URL',
-    'VITE_WS_URL',
-    'VITE_TELEGRAM_BOT_TOKEN'
-  ];
+// Telegram tipi tanımlaması
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: any;
+    };
+  }
+}
 
-  const missing = required.filter(key => !import.meta.env[key]);
-  
-  if (missing.length > 0) {
-    console.error('Eksik environment değişkenleri:', missing);
+export const isMiniApp = (): boolean => {
+  return window.Telegram && window.Telegram.WebApp ? true : false;
+};
+
+export const checkEnv = (): boolean => {
+  // API URL kontrolü
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (!apiUrl) {
+    console.error('VITE_API_URL environment variable is not defined');
     return false;
   }
-
+  
+  // WebSocket URL kontrolü
+  const wsUrl = import.meta.env.VITE_WS_URL;
+  if (!wsUrl) {
+    console.warn('VITE_WS_URL environment variable is not defined');
+  }
+  
   return true;
 };
 

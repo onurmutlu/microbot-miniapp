@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Telegram Auth API</title>
+  <script src="/api/auth/index.js"></script>
+</head>
+<body>
+  <p>Yükleniyor...</p>
+</body>
+</html> 

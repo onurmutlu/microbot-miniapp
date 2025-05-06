@@ -34,8 +34,8 @@ const SessionListPage: React.FC = () => {
     try {
       setIsLoading(true);
       const [sessionsResponse, profileResponse] = await Promise.all([
-        api.get('/sessions'),
-        api.get('/user/profile')
+        api.get('/telegram/sessions'),
+        api.get('/telegram/user/profile')
       ]);
       setSessions(sessionsResponse.data);
       setProfile(profileResponse.data);
@@ -58,7 +58,7 @@ const SessionListPage: React.FC = () => {
 
     try {
       setIsDeleting(sessionId);
-      await api.delete(`/delete-session/${sessionId}`);
+      await api.delete(`/telegram/delete-session/${sessionId}`);
       showSuccess('Telegram hesabı başarıyla silindi.');
       
       // Aktif oturum silinirse, aktif oturumu null yap
@@ -87,7 +87,7 @@ const SessionListPage: React.FC = () => {
 
   const handleSetActiveSession = async (session: Session) => {
     try {
-      await api.post(`/set-active-session/${session.id}`);
+      await api.post(`/telegram/set-active-session/${session.id}`);
       setActiveSession(session);
       showSuccess(`${session.phone} numaralı hesap aktif olarak ayarlandı.`);
     } catch (error) {

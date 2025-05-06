@@ -7,13 +7,14 @@ import StepResponseType from './StepResponseType';
 import StepResponseValue from './StepResponseValue';
 import StepTestRule from './StepTestRule';
 import { Button } from '../ui/button';
+import { Label } from '../ui/label';
 import api from '../../utils/api';
 import { showSuccess, handleApiError } from '../../utils/toast';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { iCarbonAdd, iCarbonTrash } from 'unocss/preset-icons';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface RuleWizardProps {
   onComplete?: (data: any) => void;
@@ -64,10 +65,12 @@ const WizardContent: React.FC = () => {
         priority: data.priority
       };
       
-      await api.post('/api/auto-replies', payload);
+      await api.post('/auto-replies', payload);
       showSuccess('Otomatik yanıt kuralı başarıyla oluşturuldu');
       
-      // Here you might want to navigate away or reset the form
+      if (onComplete) {
+        onComplete(data);
+      }
     } catch (error) {
       handleApiError(error, 'Kural oluşturulurken hata oluştu');
     }
@@ -79,8 +82,8 @@ const WizardContent: React.FC = () => {
         ...rules,
         {
           id: Date.now().toString(),
-          trigger: newRule.trigger,
-          response: newRule.response,
+          trigger: newRule.trigger || '',
+          response: newRule.response || '',
           isActive: newRule.isActive || true,
         },
       ]);
@@ -114,7 +117,7 @@ const WizardContent: React.FC = () => {
               </Label>
               <Input
                 id="trigger"
-                value={newRule.trigger}
+                value={newRule.trigger || ''}
                 onChange={(e) =>
                   setNewRule({ ...newRule, trigger: e.target.value })
                 }
@@ -128,7 +131,7 @@ const WizardContent: React.FC = () => {
               </Label>
               <Textarea
                 id="response"
-                value={newRule.response}
+                value={newRule.response || ''}
                 onChange={(e) =>
                   setNewRule({ ...newRule, response: e.target.value })
                 }
@@ -141,7 +144,7 @@ const WizardContent: React.FC = () => {
             onClick={handleAddRule}
             className="bg-blue-500 hover:bg-blue-600 text-white"
           >
-            <i-carbon-add className="mr-2" />
+            <PlusIcon className="w-4 h-4 mr-2" />
             Kural Ekle
           </Button>
         </CardContent>
@@ -181,7 +184,7 @@ const WizardContent: React.FC = () => {
                     onClick={() => handleDeleteRule(rule.id)}
                     className="text-red-400 hover:bg-red-500/10"
                   >
-                    <i-carbon-trash className="h-4 w-4" />
+                    <TrashIcon className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -226,7 +229,7 @@ const WizardContent: React.FC = () => {
   );
 };
 
-const RuleWizard: React.FC<RuleWizardProps> = () => {
+const RuleWizard: React.FC<RuleWizardProps> = ({ onComplete }) => {
   return (
     <WizardProvider>
       <WizardContent />

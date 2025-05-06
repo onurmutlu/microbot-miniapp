@@ -1,13 +1,11 @@
 import React, { createContext, useContext, useCallback } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
+import { useWebSocket } from '../hooks/useWebSocket.ts';
 import { showError, showInfo } from '../utils/toast';
 
 interface WebSocketContextType {
   isConnected: boolean;
-  error: Error | null;
   sendMessage: (type: string, data: any) => void;
-  disconnect: () => void;
-  reconnect: () => void;
+  subscribe: (type: string, handler: (message: any) => void) => () => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -23,20 +21,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     showError('WebSocket bağlantı hatası');
   }, []);
 
-  const { isConnected, error, sendMessage, disconnect, reconnect } = useWebSocket({
-    url: `${import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'}`,
-    onMessage: handleMessage,
-    onError: handleError,
-    reconnectInterval: 5000,
-    maxReconnectAttempts: 5
-  });
+  const { isConnected, sendMessage, subscribe } = useWebSocket();
 
   const contextValue = {
     isConnected,
-    error,
-    sendMessage: (type: string, data: any) => sendMessage({ type, data }),
-    disconnect,
-    reconnect
+    sendMessage: (type: string, data: any) => sendMessage(type, data),
+    subscribe
   };
 
   return (

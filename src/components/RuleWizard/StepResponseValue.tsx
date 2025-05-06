@@ -50,7 +50,7 @@ const StepResponseValue: React.FC = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/message-templates');
+      const response = await api.get('/message-templates');
       setTemplates(response.data);
       setLoading(false);
     } catch (error) {

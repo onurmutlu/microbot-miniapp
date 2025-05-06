@@ -36,16 +36,16 @@ const MessageSend: React.FC = () => {
     try {
       setLoading(true)
       
-      const [templatesRes, groupsRes] = await Promise.all([
-        api.get('/api/message-templates'),
-        api.get('/api/groups')
+      const [templatesResponse, groupsResponse] = await Promise.all([
+        api.get('/message-templates'),
+        api.get('/groups')
       ])
       
-      setTemplates(templatesRes.data)
-      setGroups(groupsRes.data.filter((g: Group) => g.is_active))
+      setTemplates(templatesResponse.data)
+      setGroups(groupsResponse.data.filter((g: Group) => g.is_active))
       
-      if (templatesRes.data.length > 0) {
-        setSelectedTemplateId(templatesRes.data[0].id)
+      if (templatesResponse.data.length > 0) {
+        setSelectedTemplateId(templatesResponse.data[0].id)
       }
       
       setLoading(false)
@@ -70,7 +70,7 @@ const MessageSend: React.FC = () => {
       setSending(true)
       setShowResults(true)
       
-      const response = await api.post('/api/messages/send', {
+      const response = await api.post('/messages/send', {
         template_id: selectedTemplateId,
         group_ids: groups.map(g => g.id)
       })

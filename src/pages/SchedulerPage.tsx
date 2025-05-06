@@ -18,7 +18,7 @@ const SchedulerPage: React.FC = () => {
   const fetchTemplates = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/message-templates');
+      const res = await api.get('/message-templates');
       setTemplates(res.data);
       setLoading(false);
     } catch (error) {

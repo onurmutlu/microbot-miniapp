@@ -1,43 +1,56 @@
-import React, { Component, ErrorInfo } from 'react';
-import { showError } from '../utils/toast';
+import { showError, clearAllToasts } from '../utils/toast';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
-  children: React.ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
 class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  public state: State = {
+    hasError: false,
+    error: null,
+    errorInfo: null
+  };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, errorInfo: null };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    showError('Bir hata oluştu. Lütfen sayfayı yenileyin.');
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    this.setState({ errorInfo });
+    console.error('Uygulama hatası:', error, errorInfo);
+    
+    // Önce tüm bildirimleri temizleyelim ve sonra hata mesajını gösterelim
+    clearAllToasts();
+    setTimeout(() => {
+      showError('Bir hata oluştu. Lütfen sayfayı yenileyin.');
+    }, 200);
   }
 
-  render(): React.ReactNode {
+  render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+      
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4">
-          <h2 className="text-2xl font-bold text-red-500 mb-4">
-            Bir hata oluştu
+        <div className="error-boundary p-4 bg-red-50 dark:bg-red-900/20 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold text-red-700 dark:text-red-400 mb-2">
+            Bir şeyler yanlış gitti
           </h2>
-          <p className="text-gray-600 mb-4">
-            {this.state.error?.message || 'Beklenmeyen bir hata oluştu'}
+          <p className="text-red-600 dark:text-red-300 mb-3">
+            Uygulama bir hata ile karşılaştı. Lütfen sayfayı yenileyin veya daha sonra tekrar deneyin.
           </p>
-          <button
+          <button 
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Sayfayı Yenile
           </button>

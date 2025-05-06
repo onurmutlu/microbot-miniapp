@@ -1,116 +1,61 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { useSession } from '../context/SessionContext';
 import { toast } from 'react-toastify';
 import GlassCard from './ui/GlassCard';
 import Spinner from './ui/Spinner';
-import { useSession } from '../context/SessionContext';
+import { joinGroup } from '../utils/api';
 
 const JoinGroupForm: React.FC = () => {
   const [groupLink, setGroupLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const { sessionId } = useSession();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGroupLink(e.target.value);
-    setError('');
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!sessionId) {
-      toast.error('Lütfen önce bir Telegram hesabı seçin.');
+      toast.error('Lütfen önce bir Telegram hesabı seçin');
       return;
-    }
-    
-    // Basit doğrulama
-    if (!groupLink) {
-      setError('Lütfen bir grup bağlantısı girin.');
-      return;
-    }
-    
-    // @ ile başlamazsa ekle
-    let formattedLink = groupLink;
-    if (!formattedLink.startsWith('@')) {
-      formattedLink = `@${formattedLink}`;
     }
 
     setIsLoading(true);
-
     try {
-      const response = await axios.post('/join-group', { 
-        session_id: sessionId,
-        group_link: formattedLink 
-      });
-      toast.success('Gruba başarıyla katıldınız!');
+      await joinGroup(sessionId, groupLink);
+      toast.success('Gruba başarıyla katıldınız');
       setGroupLink('');
     } catch (error) {
-      console.error('Gruba katılma hatası:', error);
-      toast.error(
-        axios.isAxiosError(error) && error.response?.data?.message
-          ? error.response.data.message
-          : 'Gruba katılırken bir hata oluştu.'
-      );
+      toast.error('Gruba katılırken bir hata oluştu');
+      console.error('Grup katılma hatası:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <GlassCard className="max-w-md mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          Telegram Grubuna Katıl
-        </h1>
-
-        {!sessionId ? (
-          <div className="text-yellow-500 mb-4 p-3 bg-yellow-100/10 rounded-md text-center">
-            Lütfen önce bir Telegram hesabı seçin.
-          </div>
-        ) : null}
-        
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label 
-              htmlFor="groupLink" 
-              className="block text-sm font-medium mb-1"
-            >
-              Grup Bağlantısı
-            </label>
-            <input
-              id="groupLink"
-              type="text"
-              value={groupLink}
-              onChange={handleInputChange}
-              placeholder="@grupadi"
-              className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading || !sessionId}
-            />
-            {error && (
-              <p className="mt-1 text-sm text-red-600">{error}</p>
-            )}
-          </div>
-          
-          <div className="flex justify-center">
-            <button
-              type="submit"
-              disabled={isLoading || !sessionId}
-              className="glass-btn px-4 py-2 rounded-lg"
-            >
-              {isLoading ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Katılınıyor...
-                </>
-              ) : (
-                'Gruba Katıl'
-              )}
-            </button>
-          </div>
-        </form>
-      </GlassCard>
-    </div>
+    <GlassCard className="p-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="groupLink" className="block text-sm font-medium mb-2">
+            Grup Linki
+          </label>
+          <input
+            type="text"
+            id="groupLink"
+            value={groupLink}
+            onChange={(e) => setGroupLink(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="https://t.me/groupname"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={isLoading || !sessionId}
+          className="w-full py-2 px-4 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isLoading ? <Spinner size="sm" /> : 'Gruba Katıl'}
+        </button>
+      </form>
+    </GlassCard>
   );
 };
 

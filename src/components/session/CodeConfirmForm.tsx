@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { useForm, SubmitHandler, FormProvider } from 'react-hook-form';
 import { ArrowLeftIcon, CheckBadgeIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import { FormField } from '../ui/FormField';
 import { Button } from '../ui/FormElements';
@@ -9,6 +9,9 @@ import GlassCard from '../ui/GlassCard';
 
 interface CodeConfirmFormProps {
   phone: string;
+  api_id?: string;
+  api_hash?: string;
+  phone_code_hash?: string;
   onBackClick: () => void;
   onCodeConfirmed: (requires2FA: boolean) => void;
 }
@@ -19,23 +22,26 @@ interface FormInputs {
 
 const CodeConfirmForm: React.FC<CodeConfirmFormProps> = ({ 
   phone, 
+  api_id = '', 
+  api_hash = '',
+  phone_code_hash = '',
   onBackClick, 
   onCodeConfirmed 
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm<FormInputs>();
+  const methods = useForm<FormInputs>();
+  const { handleSubmit } = methods;
 
   const onSubmit: SubmitHandler<FormInputs> = async (data) => {
     try {
       setIsLoading(true);
       
-      const response = await api.post('/confirm-code', {
+      const response = await api.post('/telegram/code-confirm', {
+        api_id,
+        api_hash,
         phone,
+        phone_code_hash,
         code: data.code
       });
       
@@ -57,7 +63,12 @@ const CodeConfirmForm: React.FC<CodeConfirmFormProps> = ({
     try {
       setIsLoading(true);
       
-      const response = await api.post('/resend-code', { phone });
+      const response = await api.post('/telegram/resend-code', { 
+        phone,
+        api_id,
+        api_hash,
+        phone_code_hash 
+      });
       
       if (response.data?.status === 'code_sent') {
         showSuccess('Yeni doğrulama kodu telefonunuza gönderildi');
@@ -81,58 +92,60 @@ const CodeConfirmForm: React.FC<CodeConfirmFormProps> = ({
           <span className="font-medium">{phone}</span> numaralı telefonunuza gönderilen doğrulama kodunu girin.
         </p>
         
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            name="code"
-            label="Doğrulama Kodu"
-            type="text"
-            placeholder="12345"
-            tooltip="Telegram tarafından telefonunuza gönderilen doğrulama kodu"
-            options={{ 
-              required: 'Doğrulama kodu gereklidir',
-              pattern: {
-                value: /^\d+$/,
-                message: 'Doğrulama kodu sadece rakamlardan oluşmalıdır'
-              }
-            }}
-          />
-          
-          <div className="flex space-x-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoading}
-              onClick={onBackClick}
-              icon={<ArrowLeftIcon className="w-4 h-4" />}
-              className="flex-1"
-            >
-              Geri
-            </Button>
+        <FormProvider {...methods}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              name="code"
+              label="Doğrulama Kodu"
+              type="text"
+              placeholder="12345"
+              tooltip="Telegram tarafından telefonunuza gönderilen doğrulama kodu"
+              options={{ 
+                required: 'Doğrulama kodu gereklidir',
+                pattern: {
+                  value: /^\d+$/,
+                  message: 'Doğrulama kodu sadece rakamlardan oluşmalıdır'
+                }
+              }}
+            />
             
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isLoading}
-              isLoading={isLoading}
-              icon={<CheckBadgeIcon className="w-4 h-4" />}
-              className="flex-1"
-            >
-              {isLoading ? 'Doğrulanıyor...' : 'Kodu Doğrula'}
-            </Button>
-          </div>
-          
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={handleResendCode}
-              disabled={isLoading}
-              className="mt-2 text-sm text-[#3f51b5] hover:text-[#303f9f] dark:text-[#5c6bc0] dark:hover:text-[#7986cb] flex items-center justify-center mx-auto"
-            >
-              <ArrowPathIcon className="w-3.5 h-3.5 mr-1" />
-              Kodu Tekrar Gönder
-            </button>
-          </div>
-        </form>
+            <div className="flex space-x-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isLoading}
+                onClick={onBackClick}
+                icon={<ArrowLeftIcon className="w-4 h-4" />}
+                className="flex-1"
+              >
+                Geri
+              </Button>
+              
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={isLoading}
+                isLoading={isLoading}
+                icon={<CheckBadgeIcon className="w-4 h-4" />}
+                className="flex-1"
+              >
+                {isLoading ? 'Doğrulanıyor...' : 'Kodu Doğrula'}
+              </Button>
+            </div>
+            
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={isLoading}
+                className="mt-2 text-sm text-[#3f51b5] hover:text-[#303f9f] dark:text-[#5c6bc0] dark:hover:text-[#7986cb] flex items-center justify-center mx-auto"
+              >
+                <ArrowPathIcon className="w-3.5 h-3.5 mr-1" />
+                Kodu Tekrar Gönder
+              </button>
+            </div>
+          </form>
+        </FormProvider>
       </GlassCard>
     </div>
   );

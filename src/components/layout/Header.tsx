@@ -15,6 +15,8 @@ import {
   ShieldCheckIcon,
   ShieldExclamationIcon
 } from '@heroicons/react/24/outline';
+import SSENotificationCenter from '../SSENotificationCenter';
+import { isMiniApp } from '../../utils/env';
 
 const Header: React.FC = () => {
   const dispatch = useDispatch();
@@ -23,6 +25,31 @@ const Header: React.FC = () => {
   const [hasActiveSession, setHasActiveSession] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const isTestMode = getTestMode();
+  
+  // Aktif grupları saklayacak olan değişken
+  const [activeGroups, setActiveGroups] = useState<string[]>([]);
+
+  // Telegram WebApp'i genişletme fonksiyonu
+  const expandMiniApp = () => {
+    if (isMiniApp() && window.Telegram?.WebApp) {
+      window.Telegram.WebApp.expand();
+    }
+  };
+  
+  // Aktif grupları yükle
+  useEffect(() => {
+    const loadActiveGroups = async () => {
+      try {
+        // Bu örnek için sabit grup ID'leri kullanıyoruz
+        // Gerçek bir uygulamada API'den alınabilir
+        setActiveGroups(['group1', 'group2', 'notifications']);
+      } catch (error) {
+        console.error('Gruplar yüklenirken hata:', error);
+      }
+    };
+    
+    loadActiveGroups();
+  }, []);
 
   useEffect(() => {
     // Karanlık mod için isteği kontrol et
@@ -77,91 +104,122 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg shadow-sm px-6 py-3 sticky top-0 left-0 right-0 z-10 border-b border-gray-200 dark:border-gray-700">
+    <header className="bg-white p-4 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-10 glass-card glass-gradient-primary dark:glass-gradient-dark">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link to="/" className="text-xl font-bold text-gray-800 dark:text-white">
-            MicroBot <span className="text-xs text-[#3f51b5] dark:text-[#5c6bc0]">Beta</span>
-          </Link>
+          <div className="font-bold text-lg hidden md:block text-gray-800 dark:text-white">
+            MicroBot <span className="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded dark:text-indigo-300 dark:bg-indigo-900">Mini App</span>
+          </div>
           
-          {isTestMode && (
-            <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
-              <BeakerIcon className="w-3 h-3 mr-1" />
-              Test Modu
-            </div>
+          {/* Telegram WebApp butonu - sadece MiniApp modunda göster */}
+          {isMiniApp() && (
+            <button
+              className="p-2 glass-btn text-white rounded-lg hover:bg-indigo-600 bg-[#3f51b5]"
+              onClick={expandMiniApp}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 110-2h4a1 1 0 011 1v4a1 1 0 11-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 112 0v1.586l2.293-2.293a1 1 0 111.414 1.414L6.414 15H8a1 1 0 110 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 110-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 13.586V12a1 1 0 011-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
           )}
         </div>
-        
-        <div className="flex items-center space-x-3">
-          {/* Oturum durumu */}
-          <Link to="/settings" className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
-            {hasActiveSession ? (
-              <>
-                <ShieldCheckIcon className="w-4 h-4 text-green-500" />
-                <span className="text-green-600 dark:text-green-400">Oturum Aktif</span>
-              </>
-            ) : (
-              <>
-                <ShieldExclamationIcon className="w-4 h-4 text-red-500" />
-                <span className="text-red-600 dark:text-red-400">Oturum Gerekiyor</span>
-              </>
-            )}
-          </Link>
+
+        <div className="flex items-center space-x-4">
+          {/* Bildirim Merkezi */}
+          <SSENotificationCenter 
+            channelIds={activeGroups} 
+            maxNotifications={100}
+            showUnreadBadge={true}
+            onNotificationClick={(notification) => {
+              // Bildirim tıklama işlemlerini burada yapabilirsiniz
+              if (notification.channelId) {
+                // Grupla ilgili bir işlem yapılabilir
+                console.log(`${notification.channelId} kanalından bildirim tıklandı`);
+              }
+            }}
+          />
           
-          {/* Tema değiştirme butonu */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-            aria-label="Toggle dark mode"
-          >
-            {darkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-          </button>
-          
-          {/* Bildirimler */}
-          <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 relative">
-            <BellIcon className="w-5 h-5" />
-            <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-          </button>
-          
-          {/* Kullanıcı menüsü */}
-          <div className="relative">
+          {/* Kullanıcı Alanı */}
+          <div className="flex items-center space-x-3">
+            {/* Oturum durumu */}
+            <Link to="/settings" className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm">
+              {hasActiveSession ? (
+                <>
+                  <ShieldCheckIcon className="w-4 h-4 text-green-500" />
+                  <span className="text-green-600 dark:text-green-400">Oturum Aktif</span>
+                </>
+              ) : (
+                <>
+                  <ShieldExclamationIcon className="w-4 h-4 text-red-500" />
+                  <span className="text-red-600 dark:text-red-400">Oturum Gerekiyor</span>
+                </>
+              )}
+            </Link>
+            
+            {/* Tema değiştirme butonu */}
             <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={toggleTheme}
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              aria-label="Toggle dark mode"
             >
-              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                {user?.photo_url ? (
-                  <img src={user.photo_url} alt={user.username} className="w-full h-full object-cover" />
-                ) : (
-                  <UserCircleIcon className="w-7 h-7 text-gray-500" />
-                )}
-              </div>
+              {darkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
             </button>
             
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-20 border border-gray-200 dark:border-gray-700">
-                <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                  <div className="font-medium text-sm text-gray-800 dark:text-white">{user?.first_name} {user?.last_name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">@{user?.username}</div>
+            {/* Bildirimler */}
+            <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 relative">
+              <BellIcon className="w-5 h-5" />
+              <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+            </button>
+            
+            {/* Kullanıcı menüsü */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                  {user?.photo_url ? (
+                    <img src={user.photo_url} alt={user.username} className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircleIcon className="w-7 h-7 text-gray-500" />
+                  )}
                 </div>
-                <Link
-                  to="/settings"
-                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  onClick={() => setShowDropdown(false)}
-                >
-                  Ayarlar
-                </Link>
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowDropdown(false);
-                  }}
-                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Çıkış Yap
-                </button>
-              </div>
-            )}
+              </button>
+              
+              {showDropdown && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-20 border border-gray-200 dark:border-gray-700">
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="font-medium text-sm text-gray-800 dark:text-white">{user?.first_name} {user?.last_name}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">@{user?.username}</div>
+                  </div>
+                  <Link
+                    to="/settings"
+                    className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => setShowDropdown(false)}
+                  >
+                    Ayarlar
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setShowDropdown(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    Çıkış Yap
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

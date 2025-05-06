@@ -3,6 +3,15 @@ import { FiAlertTriangle } from 'react-icons/fi'
 import SessionInfoCard from './SessionInfoCard'
 import PasswordConfirmForm from './PasswordConfirmForm'
 import { showError } from '../../utils/toast'
+import { useNavigate, useLocation } from 'react-router-dom'
+import SessionManager from './SessionManager'
+
+interface LocationState {
+  phone?: string;
+  api_id?: string;
+  api_hash?: string;
+  phone_code_hash?: string;
+}
 
 const SessionPage: React.FC = () => {
   const [userData, setUserData] = useState<any>(null)
@@ -10,6 +19,9 @@ const SessionPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [needPassword, setNeedPassword] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as LocationState
 
   useEffect(() => {
     // Oturum bilgilerini fetch et
@@ -19,7 +31,7 @@ const SessionPage: React.FC = () => {
   const fetchSessionData = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/auth/session')
+      const response = await fetch('/auth/session')
       const data = await response.json()
       
       if (!response.ok) {
@@ -50,6 +62,13 @@ const SessionPage: React.FC = () => {
     fetchSessionData()
   }
 
+  const handleSessionStarted = () => {
+    // Oturum başarıyla başlatıldığında anasayfaya yönlendir
+    setTimeout(() => {
+      navigate('/')
+    }, 2000)
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -76,24 +95,21 @@ const SessionPage: React.FC = () => {
 
   if (needPassword) {
     return <PasswordConfirmForm 
-      onSuccess={handlePasswordConfirmed} 
+      phone=""
+      api_id=""
+      api_hash=""
+      phone_code_hash=""
+      onSessionStarted={handlePasswordConfirmed} 
       onBackClick={() => setNeedPassword(false)}
     />
   }
 
   return (
-    <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold glass-gradient mb-4">Oturum Bilgileriniz</h2>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">
-        Telegram hesabınız ile ilgili mevcut oturum bilgileriniz aşağıda gösterilmektedir.
-      </p>
-      
-      {userData && sessionData && (
-        <SessionInfoCard 
-          userData={userData} 
-          sessionData={sessionData} 
-        />
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#121212] dark:to-[#1a2035] py-8">
+      <SessionManager 
+        onSessionStarted={handleSessionStarted} 
+        initialData={state}
+      />
     </div>
   )
 }

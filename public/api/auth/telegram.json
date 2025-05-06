@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTIzNDU2Nzg5LCJ1c2VybmFtZSI6InRlc3R1c2VyIiwiaWF0IjoxNjgzMjA5ODI2fQ.mock-telegram-token",
+  "user": {
+    "id": 123456789,
+    "first_name": "Test",
+    "last_name": "User",
+    "username": "testuser",
+    "photo_url": "https://i.pravatar.cc/150?img=3",
+    "auth_date": 1683209826,
+    "hash": "abcdef1234567890"
+  }
+} 
