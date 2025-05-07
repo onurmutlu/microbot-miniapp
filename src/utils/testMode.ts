@@ -8,6 +8,9 @@ export const setTestMode = (enabled: boolean): void => {
   try {
     localStorage.setItem('test_mode', enabled ? 'true' : 'false');
     console.log(`Test modu ${enabled ? 'etkinleştirildi' : 'devre dışı bırakıldı'}`);
+    
+    // Test modu göstergesini güncelle
+    updateTestModeIndicator();
   } catch (error) {
     console.error('Test modu ayarlanırken hata:', error);
   }
@@ -50,8 +53,10 @@ export const renderTestModeIndicator = (): string => {
   if (!isTestMode) return '';
   
   return `
-    <div style="position: fixed; bottom: 10px; left: 10px; background: rgba(255, 0, 0, 0.7); 
-    color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; z-index: 9999;">
+    <div id="testModeIndicator" style="position: fixed; bottom: 20px; right: 20px; background: rgba(255, 0, 0, 0.8); 
+    color: white; padding: 6px 12px; border-radius: 8px; font-size: 12px; z-index: 9999; 
+    cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.15); transition: all 0.2s ease-in-out;"
+    onclick="window.toggleTestMode && window.toggleTestMode()">
       Test Modu
     </div>
   `;
@@ -68,9 +73,52 @@ export const runInTestMode = <T>(callback: () => T, fallback?: T): T | undefined
   return fallback;
 };
 
+/**
+ * Test modu göstergesini DOM'a ekler veya günceller
+ */
+export const updateTestModeIndicator = (): void => {
+  try {
+    // Mevcut göstergeyi sil
+    const existingIndicator = document.getElementById('testModeIndicator');
+    if (existingIndicator) {
+      existingIndicator.remove();
+    }
+    
+    // Test modu etkinse yeni gösterge ekle
+    if (getTestMode()) {
+      const indicatorHTML = renderTestModeIndicator();
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = indicatorHTML;
+      document.body.appendChild(tempDiv.firstElementChild as HTMLElement);
+      
+      // Tıklama efekti ekle
+      const indicator = document.getElementById('testModeIndicator');
+      if (indicator) {
+        indicator.addEventListener('mousedown', () => {
+          indicator.style.transform = 'scale(0.95)';
+        });
+        indicator.addEventListener('mouseup', () => {
+          indicator.style.transform = 'scale(1)';
+        });
+        indicator.addEventListener('mouseleave', () => {
+          indicator.style.transform = 'scale(1)';
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Test modu göstergesi güncellenirken hata:', error);
+  }
+};
+
+// Sayfa yüklendiğinde test modu göstergesini güncelle
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', updateTestModeIndicator);
+}
+
 export default {
   getTestMode,
   setTestMode,
   renderTestModeIndicator,
-  runInTestMode
+  runInTestMode,
+  updateTestModeIndicator
 }; 

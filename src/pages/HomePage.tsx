@@ -111,6 +111,102 @@ const HomePage: React.FC = () => {
           <p className="mb-6 text-gray-600 dark:text-gray-300">
             Tüm özellikleri keşfetmek için yan menüyü kullanabilir veya yukarıdaki kartlardan birini seçebilirsiniz.
           </p>
+          
+          <div className="mt-6 p-4 bg-gradient-to-r from-purple-600/30 to-blue-600/30 rounded-xl text-center">
+            <h3 className="text-xl font-bold mb-2 text-gradient">Yeni Cyberpunk UI Demosu</h3>
+            <p className="mb-3 text-gray-700 dark:text-gray-200">
+              Modern, neon ve glass efektli yeni kullanıcı arayüzümüzü deneyimleyin!
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => navigate('/cyberpunk')}
+                className="btn bg-gradient-to-r from-purple-600 to-blue-600 text-white py-2 px-6 rounded-full hover:shadow-lg transition-all"
+              >
+                Cyberpunk Temayı Dene
+              </button>
+              <button
+                onClick={() => navigate('/cyberpunk-dashboard-demo')}
+                className="btn bg-gradient-to-r from-cyan-500 to-purple-600 text-white py-2 px-6 rounded-full hover:shadow-lg transition-all"
+              >
+                Neon Dashboard Demo
+              </button>
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-gradient-to-r from-slate-700/40 to-slate-800/40 rounded-xl text-center">
+            <h3 className="text-xl font-bold mb-2">Kurumsal Dark Tema</h3>
+            <p className="mb-3 text-gray-700 dark:text-gray-200">
+              Profesyonel iş ortamları için tasarlanmış sade ve şık kurumsal temamızı keşfedin.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => navigate('/corporate-panel-demo')}
+                className="btn bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded hover:shadow-lg transition-all"
+              >
+                Kurumsal Panel Demo
+              </button>
+              <button
+                onClick={() => navigate('/neon-button-demo')}
+                className="btn bg-gradient-to-r from-[#ff6ec4] to-[#7873f5] text-white py-2 px-6 rounded-full hover:shadow-lg transition-all"
+              >
+                Neon Buton Demo
+              </button>
+              <button
+                onClick={() => navigate('/corporate-button-demo')}
+                className="btn bg-slate-800 hover:bg-slate-700 text-white py-2 px-6 rounded hover:shadow-lg transition-all"
+              >
+                Kurumsal Butonlar
+              </button>
+              <button
+                onClick={() => navigate('/corporate-mobile-header-demo')}
+                className="btn bg-slate-700 hover:bg-slate-600 text-white py-2 px-6 rounded hover:shadow-lg transition-all"
+              >
+                Mobil Header Demo
+              </button>
+              <button
+                onClick={() => navigate('/corporate-glass-card-demo')}
+                className="btn bg-gradient-to-r from-slate-800 to-slate-700 text-white py-2 px-6 rounded hover:shadow-lg transition-all"
+              >
+                Glass Kart Demo
+              </button>
+              <button
+                onClick={() => navigate('/theme-switcher-demo')}
+                className="btn bg-gradient-to-r from-purple-700 to-blue-700 text-white py-2 px-6 rounded hover:shadow-lg transition-all"
+              >
+                Tema Seçici Demo
+              </button>
+            </div>
+          </div>
+          
+          <div className="mt-6 p-4 bg-gradient-to-r from-cyan-500/30 to-fuchsia-500/30 rounded-xl text-center">
+            <h3 className="text-xl font-bold mb-2">Animasyonlu Bileşenler Demo</h3>
+            <p className="mb-3 text-gray-700 dark:text-gray-200">
+              UnoCSS ve Framer Motion ile oluşturulmuş saydam ve animasyonlu kartları keşfedin. Sayfa geçişlerinde yumuşak animasyonlar ve sıralı görünüm efektleri.
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={() => navigate('/animation-demo')}
+                className="btn bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white py-2 px-6 rounded-full hover:shadow-xl transition-all"
+              >
+                Animasyon Demosunu Aç
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 p-4 bg-gradient-to-r from-blue-500/30 to-green-500/30 rounded-xl text-center">
+            <h3 className="text-xl font-bold mb-2">UI Bileşenleri Style Guide</h3>
+            <p className="mb-3 text-gray-700 dark:text-gray-200">
+              Tüm UI bileşenlerinin gösterildiği, temalar arasında geçiş yapabildiğiniz ve kod örnekleriyle kullanımlarını öğrenebileceğiniz kapsamlı style guide.
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={() => navigate('/ui-style-guide')}
+                className="btn bg-gradient-to-r from-blue-500 to-green-500 text-white py-2 px-6 rounded-full hover:shadow-xl transition-all"
+              >
+                Style Guide'ı Görüntüle
+              </button>
+            </div>
+          </div>
         </GlassCard>
       </section>
     </div>

@@ -1,5 +1,6 @@
 import { toast } from '../utils/toast';
 import { getTestMode } from '../utils/testMode';
+import { ReconnectStrategy } from '../types/system';
 
 // Mesaj tip tanımlamaları
 export enum WebSocketMessageType {
@@ -9,7 +10,9 @@ export enum WebSocketMessageType {
   BROADCAST = 'broadcast',
   CONNECTION = 'connection',
   SUBSCRIPTION = 'subscription',
-  ERROR = 'error'
+  ERROR = 'error',
+  RECONNECT = 'reconnect',
+  STATUS = 'status'
 }
 
 // Mesaj veri tipi
@@ -41,6 +44,7 @@ export interface WebSocketConfig {
   onClose?: (event: CloseEvent) => void;
   onError?: (event: Event) => void;
   onMessage?: (message: WebSocketMessage) => void;
+  reconnectStrategy?: ReconnectStrategy;
 }
 
 // WebSocket servisi için durum bilgisi
@@ -50,7 +54,23 @@ export type WebSocketState = {
   lastMessage: WebSocketMessage | null;
   reconnectAttempt: number;
   error: Error | null;
+  reconnectStrategy: ReconnectStrategy;
+  lastReconnectTime: number | null;
+  connectionStats: {
+    connectedSince: number | null;
+    disconnectionCount: number;
+    totalReconnects: number;
+    lastLatency: number | null;
+    avgLatency: number | null;
+  };
 };
+
+// Bağlantı performans ölçümleri için tip
+export interface ConnectionPerformance {
+  latency: number; // ms cinsinden
+  timestamp: number;
+  successful: boolean;
+}
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -64,13 +84,27 @@ class WebSocketClient {
   private wsUrl: string;
   private forceClosed = false;
   
+  // Performans ölçümleri için
+  private latencyMeasurements: ConnectionPerformance[] = [];
+  private pingStartTime = 0;
+  private connectionStartTime = 0;
+  
   // WebSocket durumu
   private _state: WebSocketState = {
     isConnected: false,
     isConnecting: false,
     lastMessage: null,
     reconnectAttempt: 0,
-    error: null
+    error: null,
+    reconnectStrategy: ReconnectStrategy.EXPONENTIAL,
+    lastReconnectTime: null,
+    connectionStats: {
+      connectedSince: null,
+      disconnectionCount: 0,
+      totalReconnects: 0,
+      lastLatency: null,
+      avgLatency: null
+    }
   };
   
   // Durum değişikliği için dinleyiciler
@@ -88,12 +122,16 @@ class WebSocketClient {
       onOpen: () => {},
       onClose: () => {},
       onError: () => {},
-      onMessage: () => {}
+      onMessage: () => {},
+      reconnectStrategy: ReconnectStrategy.EXPONENTIAL
     };
     
     this.config = { ...defaultConfig, ...config };
     this.clientId = this.generateClientId();
     this.wsUrl = `${this.config.url}/${this.clientId}`;
+    
+    // Yeniden bağlanma stratejisini ayarla
+    this._state.reconnectStrategy = this.config.reconnectStrategy;
     
     // Test modunda otomatik bağlanmayı atla
     if (this.config.autoConnect && !getTestMode()) {
@@ -102,7 +140,13 @@ class WebSocketClient {
     
     // Test modunda, isConnected'ı true olarak ayarla
     if (getTestMode()) {
-      this.updateState({ isConnected: true });
+      this.updateState({ 
+        isConnected: true,
+        connectionStats: {
+          ...this._state.connectionStats,
+          connectedSince: Date.now()
+        }
+      });
       this.log('Test modu aktif: WebSocket bağlantısı simüle ediliyor');
     }
   }
@@ -124,10 +168,44 @@ class WebSocketClient {
     return this._state.isConnecting;
   }
   
+  // Yeniden bağlanma stratejisini güncelle
+  public setReconnectStrategy(strategy: ReconnectStrategy): void {
+    this.config.reconnectStrategy = strategy;
+    this.updateState({ reconnectStrategy: strategy });
+    this.log(`Yeniden bağlanma stratejisi değiştirildi: ${strategy}`);
+  }
+  
+  // Performans ölçümlerini al
+  public getPerformanceMetrics(): {
+    latencies: ConnectionPerformance[];
+    avgLatency: number;
+    minLatency: number;
+    maxLatency: number;
+    successRate: number;
+  } {
+    const latencies = this.latencyMeasurements.map(m => m.latency);
+    const successfulConnections = this.latencyMeasurements.filter(m => m.successful).length;
+    
+    return {
+      latencies: this.latencyMeasurements,
+      avgLatency: latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
+      minLatency: latencies.length ? Math.min(...latencies) : 0,
+      maxLatency: latencies.length ? Math.max(...latencies) : 0,
+      successRate: this.latencyMeasurements.length ? successfulConnections / this.latencyMeasurements.length : 1
+    };
+  }
+  
   // WebSocket bağlantısını başlat
   public connect(): void {
     if (getTestMode()) {
-      this.updateState({ isConnected: true, isConnecting: false });
+      this.updateState({ 
+        isConnected: true, 
+        isConnecting: false,
+        connectionStats: {
+          ...this._state.connectionStats,
+          connectedSince: Date.now()
+        }
+      });
       return;
     }
     
@@ -145,6 +223,7 @@ class WebSocketClient {
       this.log(`WebSocket bağlantısı deneniyor: ${this.wsUrl}`);
       this.updateState({ isConnecting: true });
       
+      this.connectionStartTime = Date.now();
       this.ws = new WebSocket(this.wsUrl);
       
       // WebSocket olaylarını dinle
@@ -176,7 +255,12 @@ class WebSocketClient {
     
     this.updateState({
       isConnected: false,
-      isConnecting: false
+      isConnecting: false,
+      connectionStats: {
+        ...this._state.connectionStats,
+        connectedSince: null,
+        disconnectionCount: this._state.connectionStats.disconnectionCount + 1
+      }
     });
     
     if (force) {
@@ -317,19 +401,32 @@ class WebSocketClient {
   // Ping gönder
   private sendPing(): void {
     if (this.isConnected) {
+      this.pingStartTime = Date.now();
       this.send(WebSocketMessageType.PING);
     }
   }
   
   // Açılma olayını işle
   private handleOpen(event: Event): void {
-    this.log('WebSocket bağlantısı başarılı');
+    const connectionTime = Date.now() - this.connectionStartTime;
+    this.log(`WebSocket bağlantısı başarılı (${connectionTime}ms)`);
+    
+    // Bağlantı performansını kaydet
+    this.recordConnectionPerformance(connectionTime, true);
     
     this.updateState({
       isConnected: true,
       isConnecting: false,
       reconnectAttempt: 0,
-      error: null
+      error: null,
+      lastReconnectTime: this.reconnectAttempt > 0 ? Date.now() : null,
+      connectionStats: {
+        ...this._state.connectionStats,
+        connectedSince: Date.now(),
+        totalReconnects: this._state.reconnectAttempt > 0 ? 
+          this._state.connectionStats.totalReconnects + 1 : 
+          this._state.connectionStats.totalReconnects
+      }
     });
     
     // Ping zamanlayıcısını başlat
@@ -337,6 +434,17 @@ class WebSocketClient {
     
     // Kaydedilmiş abonelikleri yeniden kaydet
     this.resubscribeAll();
+    
+    // Sunucuya bağlantı durumu bilgisini gönder
+    this.send(WebSocketMessageType.CONNECTION, {
+      status: 'connected',
+      reconnect_attempt: this.reconnectAttempt,
+      client_info: {
+        user_agent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform
+      }
+    });
     
     // Yapılandırma callback'ini çağır
     this.config.onOpen(event);
@@ -348,7 +456,12 @@ class WebSocketClient {
     
     this.updateState({
       isConnected: false,
-      isConnecting: false
+      isConnecting: false,
+      connectionStats: {
+        ...this._state.connectionStats,
+        connectedSince: null,
+        disconnectionCount: this._state.connectionStats.disconnectionCount + 1
+      }
     });
     
     // Zamanlayıcıları temizle
@@ -374,6 +487,11 @@ class WebSocketClient {
       isConnecting: false
     });
     
+    // Bağlantı denemesi başarısız oldu, performans ölçümünü kaydet
+    if (this.connectionStartTime > 0) {
+      this.recordConnectionPerformance(Date.now() - this.connectionStartTime, false);
+    }
+    
     // Yapılandırma callback'ini çağır
     this.config.onError(event);
   }
@@ -392,11 +510,40 @@ class WebSocketClient {
       switch (message.type) {
         case WebSocketMessageType.PONG:
           this.lastPong = Date.now();
+          // Ping-pong latency ölçümü
+          if (this.pingStartTime > 0) {
+            const latency = this.lastPong - this.pingStartTime;
+            this.updateState({
+              connectionStats: {
+                ...this._state.connectionStats,
+                lastLatency: latency,
+                avgLatency: this._state.connectionStats.avgLatency ? 
+                  (this._state.connectionStats.avgLatency * 0.7 + latency * 0.3) : latency
+              }
+            });
+            this.pingStartTime = 0;
+          }
           break;
           
         case WebSocketMessageType.PING:
           // Ping'e yanıt olarak pong gönder
           this.send(WebSocketMessageType.PONG);
+          break;
+          
+        case WebSocketMessageType.STATUS:
+          // Sunucudan gelen durum mesajlarını işle
+          if (message.data?.client_count !== undefined) {
+            // Bağlı istemci sayısı güncellemesi
+            this.log(`Sunucuda ${message.data.client_count} aktif bağlantı var`);
+          }
+          break;
+          
+        case WebSocketMessageType.RECONNECT:
+          // Sunucudan gelen yeniden bağlanma isteği
+          if (message.data?.reason) {
+            this.log(`Sunucu yeniden bağlanma istiyor: ${message.data.reason}`);
+            this.reconnect();
+          }
           break;
           
         case WebSocketMessageType.MESSAGE:
@@ -438,12 +585,17 @@ class WebSocketClient {
     this.reconnectAttempt++;
     
     if (this.reconnectAttempt <= this.config.maxReconnectAttempts) {
-      const delay = this.config.reconnectDelay * Math.min(this.reconnectAttempt, 10);
+      // Yeniden bağlanma stratejisine göre gecikme hesapla
+      const delay = this.calculateReconnectDelay();
+      
       this.log(`WebSocket yeniden bağlanma denemesi ${this.reconnectAttempt}/${this.config.maxReconnectAttempts} - ${delay}ms sonra`);
       
       this.updateState({
         reconnectAttempt: this.reconnectAttempt
       });
+      
+      // Yeniden bağlanma sürecini göstermek için UI bildirim
+      this.notifyReconnecting(delay, this.reconnectAttempt);
       
       this.reconnectTimer = setTimeout(() => {
         this.connect();
@@ -451,6 +603,72 @@ class WebSocketClient {
     } else {
       this.log('Maksimum yeniden bağlanma denemesi aşıldı, bağlantı kesildi');
       toast.error('WebSocket bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
+    }
+  }
+  
+  // Yeniden bağlanma stratejisine göre gecikme hesapla
+  private calculateReconnectDelay(): number {
+    const baseDelay = this.config.reconnectDelay;
+    
+    switch (this._state.reconnectStrategy) {
+      case ReconnectStrategy.LINEAR:
+        // Doğrusal artış: baseDelay * attemptNumber
+        return baseDelay * this.reconnectAttempt;
+        
+      case ReconnectStrategy.EXPONENTIAL:
+        // Üstel artış: baseDelay * 2^(attemptNumber-1)
+        return baseDelay * Math.pow(2, Math.min(this.reconnectAttempt - 1, 6));
+        
+      case ReconnectStrategy.FIBONACCI:
+        // Fibonacci dizisi: Her yeni gecikme, önceki iki gecikmenin toplamı
+        return this.getFibonacciDelay(this.reconnectAttempt) * baseDelay;
+        
+      case ReconnectStrategy.RANDOM:
+        // Rastgele gecikme: baseDelay ile baseDelay*2 arası
+        const min = baseDelay;
+        const max = baseDelay * 2;
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+        
+      default:
+        return baseDelay;
+    }
+  }
+  
+  // Fibonacci serisindeki n. elemanı hesapla
+  private getFibonacciDelay(n: number): number {
+    if (n <= 0) return 0;
+    if (n === 1) return 1;
+    
+    let a = 0, b = 1;
+    for (let i = 2; i <= n; i++) {
+      const temp = a + b;
+      a = b;
+      b = temp;
+    }
+    return b;
+  }
+  
+  // Yeniden bağlanma durumunu bildir
+  private notifyReconnecting(delay: number, attempt: number): void {
+    // Kısa süreli bir bildirimi sürekli göstermemek için ilk denemede ve
+    // ardından her 3 denemede bir bildirim göster
+    if (attempt === 1 || attempt % 3 === 0) {
+      const delaySeconds = Math.round(delay / 1000);
+      toast.info(`WebSocket bağlantısı kesik. ${delaySeconds} saniye içinde yeniden bağlanılacak. (Deneme ${attempt}/${this.config.maxReconnectAttempts})`, { autoClose: delay });
+    }
+  }
+  
+  // Bağlantı performansını kaydet
+  private recordConnectionPerformance(latency: number, successful: boolean): void {
+    this.latencyMeasurements.push({
+      latency,
+      timestamp: Date.now(),
+      successful
+    });
+    
+    // Sadece son 50 ölçümü tut
+    if (this.latencyMeasurements.length > 50) {
+      this.latencyMeasurements.shift();
     }
   }
   
@@ -531,7 +749,8 @@ class WebSocketClient {
 // Singleton WebSocket istemci örneği
 export const webSocketClient = new WebSocketClient({
   debug: true,
-  autoConnect: false
+  autoConnect: false,
+  reconnectStrategy: ReconnectStrategy.EXPONENTIAL
 });
 
-export default webSocketClient; 
+export default webSocketClient;

@@ -172,4 +172,4 @@ export function useSSE(options: UseSSEOptions = {}) {
   return value;
 }
 
-export default useSSE; 
+export default useSSE;

@@ -1,0 +1,123 @@
+/* Tema değişkenlerini tanımlayan CSS */
+
+/* Corporate Dark Tema Değişkenleri */
+.corporate-theme {
+  /* Arkaplan renkleri */
+  --bg-primary: #121212;
+  --bg-secondary: #1e1e1e;
+  --bg-tertiary: #2a2a2a;
+  
+  /* Metin renkleri */
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #808080;
+  
+  /* Aksent renkleri */
+  --accent-primary: #1a365d;
+  --accent-primary-light: #2c4a7c;
+  --accent-secondary: #334155;
+  --accent-secondary-light: #475569;
+  
+  /* Kenar ve gölge renkleri */
+  --border-color: #333333;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --shadow-color-light: rgba(0, 0, 0, 0.15);
+  
+  /* Bileşen özellikleri */
+  --card-radius: 6px;
+  --button-radius: 4px;
+  --input-radius: 4px;
+  
+  /* Geçiş efektleri */
+  --transition-speed: 0.3s;
+  --transition-function: ease-in-out;
+}
+
+/* Cyberpunk Tema Değişkenleri */
+.cyberpunk-theme {
+  /* Arkaplan renkleri */
+  --bg-primary: #0c0c1d;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #262640;
+  
+  /* Metin renkleri */
+  --text-primary: #ffffff;
+  --text-secondary: #ccccff;
+  --text-muted: #9090b0;
+  
+  /* Aksent renkleri */
+  --accent-primary: #ff6ec4;
+  --accent-primary-light: #ff8cd2;
+  --accent-secondary: #7873f5;
+  --accent-secondary-light: #9590ff;
+  
+  /* Neon renkler */
+  --neon-cyan: #00ffff;
+  --neon-magenta: #ff00ff;
+  --neon-lime: #b4ff00;
+  --neon-purple: #bb00ff;
+  --neon-yellow: #ffdf00;
+  
+  /* Kenar ve gölge renkleri */
+  --border-color: rgba(255, 110, 196, 0.3);
+  --shadow-color: rgba(255, 110, 196, 0.3);
+  --shadow-color-light: rgba(255, 110, 196, 0.15);
+  
+  /* Bileşen özellikleri */
+  --card-radius: 12px;
+  --button-radius: 24px; /* Yuvarlak butonlar */
+  --input-radius: 8px;
+  
+  /* Geçiş efektleri */
+  --transition-speed: 0.4s;
+  --transition-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Kurallara Bağlı Stillendirmeler */
+
+/* KARTLAR */
+.theme-aware-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  box-shadow: 0 2px 8px var(--shadow-color-light);
+  transition: all var(--transition-speed) var(--transition-function);
+  color: var(--text-primary);
+}
+
+.theme-aware-card:hover {
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+/* BUTONLAR */
+.theme-aware-button {
+  background-color: var(--accent-primary);
+  color: var(--text-primary);
+  border-radius: var(--button-radius);
+  padding: 0.5rem 1rem;
+  border: none;
+  transition: all var(--transition-speed) var(--transition-function);
+}
+
+.theme-aware-button:hover {
+  background-color: var(--accent-primary-light);
+}
+
+/* Ekstra stil - Cyberpunk neon glow efekti */
+.cyberpunk-theme .theme-aware-button {
+  box-shadow: 0 0 8px var(--accent-primary);
+}
+
+.cyberpunk-theme .theme-aware-button:hover {
+  box-shadow: 0 0 15px var(--accent-primary), 0 0 30px var(--accent-primary-light);
+}
+
+/* Metin Stilleri */
+.theme-aware-heading {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.theme-aware-text {
+  color: var(--text-secondary);
+} 

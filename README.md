@@ -364,3 +364,66 @@ function MyPage() {
   );
 }
 ```
+
+## Sorun Giderme
+
+### Test Modu
+
+Eğer API veya WebSocket bağlantılarında sorun yaşıyorsanız, uygulamayı test modunda çalıştırabilirsiniz. Test modu, gerçek bağlantıları kullanmadan uygulamanın çalışmasını sağlar.
+
+Test modunu etkinleştirmek için:
+
+1. Tarayıcı konsolunda `toggleTestMode()` komutunu çalıştırın
+2. Veya ekranın sağ alt köşesindeki "Test Modu" göstergesine tıklayın
+
+Test modu varsayılan olarak geliştirme ortamında (localhost) etkindir.
+
+### Bağlantı Sorunları
+
+Eğer "Yükleniyor" ekranında takılıyorsanız, şu adımları deneyin:
+
+1. API sunucusunun çalıştığından emin olun (`http://localhost:8000`)
+2. Tarayıcı konsolunda hata mesajlarını kontrol edin
+3. Test modunu etkinleştirin
+4. Bağlantı testlerini çalıştırın: `runConnectionTests()`
+
+### URL Yapılandırması
+
+API URL'ini ayarlamak için `.env` veya `.env.local` dosyasında şu değişkeni tanımlayın:
+
+```
+VITE_API_URL=http://localhost:8000
+```
+
+Backend ve frontend URL yapılandırmalarının aynı olduğundan emin olun.
+
+## Yayına Hazırlık Durumu
+
+### Versiyon 0.7.5 - 12 Temmuz 2024
+
+MicroBot MiniApp şu anda **Beta** aşamasındadır. Aşağıdaki temel özellikler tamamlanmış ve kullanıma hazırdır:
+
+✅ Telegram Mini App entegrasyonu  
+✅ Mesaj şablonları yönetimi  
+✅ Otomatik yanıt kuralları  
+✅ Grup listesi yönetimi  
+✅ Zamanlanmış mesaj gönderimi  
+✅ Görsel kural oluşturucu  
+✅ Gerçek zamanlı veri senkronizasyonu  
+✅ Karanlık/Aydınlık tema desteği  
+✅ Bağlantı durumu göstergesi  
+✅ Bağlantı test mekanizmaları  
+✅ Test modu desteği  
+
+### Tamamlanması Gereken Özellikler
+
+Production sürümüne geçmeden önce tamamlanması gereken işlemler:
+
+⬜ Çevrimdışı mod desteği  
+⬜ Performans optimizasyonları  
+⬜ Çoklu dil desteği  
+⬜ Production build yapılandırması  
+⬜ Kapsamlı kullanıcı testleri  
+⬜ Kullanıcı dokümantasyonu  
+
+Uygulamanın güncel durumu, test ortamında kullanıma hazır ancak büyük ölçekli production kullanımı için yukarıdaki geliştirmelerin tamamlanması önerilir.

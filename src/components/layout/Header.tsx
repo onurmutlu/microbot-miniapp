@@ -13,10 +13,12 @@ import {
   Cog6ToothIcon,
   BeakerIcon,
   ShieldCheckIcon,
-  ShieldExclamationIcon
+  ShieldExclamationIcon,
+  ArrowsRightLeftIcon
 } from '@heroicons/react/24/outline';
 import SSENotificationCenter from '../SSENotificationCenter';
 import { isMiniApp } from '../../utils/env';
+import WebSocketStatusIndicator from './WebSocketStatusIndicator';
 
 const Header: React.FC = () => {
   const dispatch = useDispatch();
@@ -104,8 +106,8 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="bg-white p-4 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-10 glass-card glass-gradient-primary dark:glass-gradient-dark">
-      <div className="flex items-center justify-between">
+    <header className="sticky top-0 z-40 glass-card bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/30 dark:border-gray-700/30">
+      <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center space-x-4">
           <div className="font-bold text-lg hidden md:block text-gray-800 dark:text-white">
             MicroBot <span className="text-xs font-normal text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded dark:text-indigo-300 dark:bg-indigo-900">Mini App</span>
@@ -163,6 +165,11 @@ const Header: React.FC = () => {
                   <span className="text-red-600 dark:text-red-400">Oturum Gerekiyor</span>
                 </>
               )}
+            </Link>
+            
+            {/* WebSocket durumu göstergesi */}
+            <Link to="/system/websocket" className="relative p-2 rounded-full hover:bg-gray-100/50 dark:hover:bg-gray-800/50">
+              <WebSocketStatusIndicator />
             </Link>
             
             {/* Tema değiştirme butonu */}

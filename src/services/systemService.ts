@@ -1,15 +1,16 @@
 import { apiService } from './api';
 import { getTestMode } from '../utils/testMode';
 import { mockSystemService } from '../mocks/mockServices';
+import { 
+  SystemStatus, 
+  ErrorLog, 
+  ErrorStats, 
+  WebSocketConnection, 
+  ReconnectStats, 
+  ReconnectStrategy 
+} from '../types/system';
 
-export interface SystemStatus {
-  active_handlers: number;
-  active_schedulers: number;
-  system_uptime: string;
-  memory_usage: string;
-  cpu_usage: string;
-  is_admin: boolean;
-}
+export type { SystemStatus };
 
 export interface DashboardStats {
   active_users: number;
@@ -52,6 +53,94 @@ export const systemService = {
       return mockSystemService.getDashboardStats();
     }
     return await apiService.get<DashboardStats>('/dashboard/stats');
+  },
+
+  /**
+   * Hata loglarını getirir
+   * @param page Sayfa numarası
+   * @param limit Sayfa başına log sayısı
+   * @param category Hata kategorisi filtresi
+   * @param severity Hata şiddeti filtresi
+   * @param resolved Çözüm durumu filtresi
+   */
+  async getErrorLogs(
+    page = 1, 
+    limit = 20, 
+    category?: string, 
+    severity?: string,
+    resolved?: boolean
+  ): Promise<{ logs: ErrorLog[], total: number }> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.getErrorLogs(page, limit, category, severity, resolved);
+    }
+    
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+    
+    if (category) params.append('category', category);
+    if (severity) params.append('severity', severity);
+    if (resolved !== undefined) params.append('resolved', resolved.toString());
+    
+    return await apiService.get<{ logs: ErrorLog[], total: number }>(`/system/errors?${params.toString()}`);
+  },
+
+  /**
+   * Hata istatistiklerini getirir
+   */
+  async getErrorStats(): Promise<ErrorStats> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.getErrorStats();
+    }
+    return await apiService.get<ErrorStats>('/system/error-stats');
+  },
+
+  /**
+   * Bir hatayı çözülmüş olarak işaretler
+   * @param errorId Hata ID'si
+   */
+  async resolveError(errorId: string): Promise<void> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.resolveError(errorId);
+    }
+    await apiService.post(`/system/errors/${errorId}/resolve`, {});
+  },
+
+  /**
+   * Aktif WebSocket bağlantılarını getirir
+   */
+  async getWebSocketConnections(): Promise<WebSocketConnection[]> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.getWebSocketConnections();
+    }
+    return await apiService.get<WebSocketConnection[]>('/system/websocket-connections');
+  },
+
+  /**
+   * Yeniden bağlanma istatistiklerini getirir
+   */
+  async getReconnectStats(): Promise<ReconnectStats> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.getReconnectStats();
+    }
+    return await apiService.get<ReconnectStats>('/system/reconnect-stats');
+  },
+
+  /**
+   * Yeniden bağlanma stratejisini günceller
+   * @param strategy Yeni strateji
+   */
+  async updateReconnectStrategy(strategy: ReconnectStrategy): Promise<void> {
+    // Test modunda mock servisi kullan
+    if (getTestMode()) {
+      return mockSystemService.updateReconnectStrategy(strategy);
+    }
+    await apiService.post('/system/reconnect-strategy', { strategy });
   }
 };
 

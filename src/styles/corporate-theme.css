@@ -1,0 +1,128 @@
+/* Kurumsal Dark Tema CSS Değişkenleri */
+:root {
+  --corporate-bg-primary: #121212;
+  --corporate-bg-secondary: #1e1e1e;
+  --corporate-bg-tertiary: #2a2a2a;
+  --corporate-text-primary: #e0e0e0;
+  --corporate-text-secondary: #b0b0b0;
+  --corporate-text-muted: #808080;
+  --corporate-accent-blue: #1a365d;
+  --corporate-accent-blue-light: #2c4a7c;
+  --corporate-accent-slate: #334155;
+  --corporate-accent-slate-light: #475569;
+  --corporate-border: #333333;
+  --corporate-shadow: rgba(0, 0, 0, 0.3);
+  --corporate-shadow-light: rgba(0, 0, 0, 0.15);
+}
+
+/* Dark Tema Temel Stilleri */
+.corporate-dark {
+  background-color: var(--corporate-bg-primary);
+  color: var(--corporate-text-primary);
+}
+
+/* Kartlar */
+.corporate-card {
+  background-color: var(--corporate-bg-secondary);
+  border: 1px solid var(--corporate-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 5px var(--corporate-shadow-light);
+  padding: 1.5rem;
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.corporate-card:hover {
+  box-shadow: 0 4px 8px var(--corporate-shadow);
+}
+
+/* Başlıklar */
+.corporate-heading {
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--corporate-text-primary);
+}
+
+.corporate-subheading {
+  font-weight: 500;
+  color: var(--corporate-text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+/* Butonlar */
+.corporate-button {
+  background-color: var(--corporate-accent-blue);
+  color: var(--corporate-text-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.corporate-button:hover {
+  background-color: var(--corporate-accent-blue-light);
+}
+
+.corporate-button-secondary {
+  background-color: var(--corporate-accent-slate);
+  color: var(--corporate-text-primary);
+}
+
+.corporate-button-secondary:hover {
+  background-color: var(--corporate-accent-slate-light);
+}
+
+/* Input Stilleri */
+.corporate-input {
+  background-color: var(--corporate-bg-tertiary);
+  border: 1px solid var(--corporate-border);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  color: var(--corporate-text-primary);
+  width: 100%;
+}
+
+.corporate-input:focus {
+  outline: none;
+  border-color: var(--corporate-accent-blue-light);
+  box-shadow: 0 0 0 1px var(--corporate-accent-blue-light);
+}
+
+/* Formlar */
+.corporate-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.corporate-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--corporate-text-secondary);
+  font-weight: 500;
+}
+
+/* Checkbox */
+.corporate-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.corporate-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--corporate-accent-blue);
+}
+
+/* Yardımcı Sınıflar */
+.corporate-divider {
+  height: 1px;
+  background-color: var(--corporate-border);
+  margin: 1.5rem 0;
+}
+
+.corporate-text-muted {
+  color: var(--corporate-text-muted);
+  font-size: 0.875rem;
+} 

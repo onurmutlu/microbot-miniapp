@@ -1,5 +1,26 @@
 import sseService, { SSEConnectionState, SSEMessage } from './sseService';
 
+// SSE mesaj tipleri için enum
+export enum SSEMessageType {
+  MESSAGE = 'message',
+  BROADCAST = 'broadcast',
+  PING = 'ping',
+  CONNECTION = 'connection',
+  SUBSCRIPTION = 'subscription',
+  ERROR = 'error'
+}
+
+// SSE durum tipi tanımı
+export interface SSEState {
+  isConnected: boolean;
+  isConnecting: boolean;
+  lastMessage: SSEMessage | null;
+  clientId: string;
+  reconnectAttempt: number;
+  error: Error | null;
+  activeTopics: string[];
+}
+
 // SSEClient seçeneklerini tanımlayan interface
 interface SSEClientOptions {
   autoReconnect?: boolean;

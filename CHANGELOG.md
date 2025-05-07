@@ -4,6 +4,25 @@ Bu projede yapılan tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 # CHANGELOG.md güncellemesi
 
+## [0.7.5] - 2024-07-12
+
+### Eklenenler
+- API ve WebSocket bağlantı testleri iyileştirildi
+- SSE endpoint bağlantı testleri eklendi
+- Test modu varsayılan olarak aktif hale getirildi
+
+### Değişiklikler
+- API URL yapılandırması düzeltildi
+- WebSocket URL düzeltmeleri yapıldı
+- SSE URL düzeltmeleri yapıldı
+- API endpoint'lerindeki çift "/api" sorunu giderildi
+- Test modu göstergesi sağ alt köşeye eklendi
+
+### Düzeltmeler
+- "Yükleniyor" ekranında takılma sorunu giderildi
+- API bağlantı hatalarına karşı daha etkili hata yönetimi eklendi
+- Bağlantı testlerinde oluşan 404 hataları giderildi
+
 ## [0.7.0] - 2024-07-01
 
 ### Eklenenler

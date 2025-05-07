@@ -1,9 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSSE } from '../hooks/useSSE';
 import useWebSocket from '../hooks/useWebSocket';
-import { SSEMessage, SSEMessageType } from '../services/SSEClient';
 import { WebSocketMessage, WebSocketMessageType } from '../services/WebSocketClient';
 import { toast } from '../utils/toast';
+import TopicManager from './TopicManager';
+import MessageForm from './MessageForm';
+import MessageList from './MessageList';
+
+// SSE mesaj tipleri için yerel tanımlamalar
+interface SSEMessage {
+  type: SSEMessageType;
+  data?: any;
+  topic?: string;
+  client_id?: string;
+  timestamp?: string;
+  message?: string;
+  error?: string;
+}
+
+enum SSEMessageType {
+  MESSAGE = 'message',
+  BROADCAST = 'broadcast',
+  CONNECTION = 'connection',
+  SUBSCRIPTION = 'subscription',
+  ERROR = 'error'
+}
 
 interface MessageItem {
   id: string;
@@ -18,14 +39,12 @@ interface MessageItem {
  */
 const RealtimeExample: React.FC = () => {
   const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [message, setMessage] = useState('');
-  const [topic, setTopic] = useState('notifications');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [activeTopics, setActiveTopics] = useState<string[]>(['notifications']);
   
   // SSE hook'u
   const sse = useSSE({
     autoConnect: true,
-    topics: [topic],
+    topics: activeTopics,
     onMessage: (message: SSEMessage) => {
       handleIncomingMessage(message, 'sse');
     },
@@ -43,7 +62,7 @@ const RealtimeExample: React.FC = () => {
   // WebSocket hook'u
   const ws = useWebSocket({
     autoConnect: true,
-    topics: [topic],
+    topics: activeTopics,
     onMessage: (message: WebSocketMessage) => {
       handleIncomingMessage(message, 'ws');
     },
@@ -73,10 +92,40 @@ const RealtimeExample: React.FC = () => {
     setMessages(prev => [newMessage, ...prev].slice(0, 50));
   };
   
-  // Mesaj gönder
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Yeni konu ekle
+  const addTopic = (topic: string) => {
+    const updatedTopics = [...activeTopics, topic];
+    setActiveTopics(updatedTopics);
     
+    // Yeni konuya abone ol
+    sse.subscribe(topic, (data: any) => {
+      handleIncomingMessage({
+        type: SSEMessageType.MESSAGE,
+        data,
+        topic
+      }, 'sse');
+    });
+    
+    ws.subscribe(topic, (data: any) => {
+      handleIncomingMessage({
+        type: WebSocketMessageType.MESSAGE,
+        data,
+        topic
+      }, 'ws');
+    });
+  };
+  
+  // Konuyu kaldır
+  const removeTopic = (topic: string) => {
+    setActiveTopics(prev => prev.filter(t => t !== topic));
+    
+    // Konudan aboneliği kaldır
+    sse.unsubscribe(topic);
+    ws.unsubscribe(topic);
+  };
+  
+  // Mesaj gönder
+  const sendMessage = async (message: string, topic: string) => {
     if (!message.trim()) return;
     
     const messageData = { content: message, sentAt: new Date().toISOString() };
@@ -98,17 +147,15 @@ const RealtimeExample: React.FC = () => {
       
       // WebSocket ile gönder
       ws.sendToTopic(topic, messageData);
-      
-      // Mesaj kutusunu temizle
-      setMessage('');
     } catch (error) {
       toast.error('Mesaj gönderilemedi');
       console.error('Mesaj gönderme hatası:', error);
+      throw error;
     }
   };
 
   // Broadcast mesajı gönder
-  const sendBroadcast = async () => {
+  const sendBroadcast = async (message: string) => {
     if (!message.trim()) return;
     
     const broadcastData = { 
@@ -124,20 +171,12 @@ const RealtimeExample: React.FC = () => {
       // WebSocket ile broadcast
       ws.broadcast(broadcastData);
       
-      // Mesaj kutusunu temizle
-      setMessage('');
-      
       toast.success('Broadcast mesajı gönderildi');
     } catch (error) {
       toast.error('Broadcast gönderilemedi');
       console.error('Broadcast hatası:', error);
+      throw error;
     }
-  };
-  
-  // Konu değişikliğini işle
-  const handleTopicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTopic = e.target.value;
-    setTopic(newTopic);
   };
   
   // Bağlantı durumunu işle
@@ -153,34 +192,31 @@ const RealtimeExample: React.FC = () => {
     }
   };
   
-  // Otomatik kaydırma
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-  
   // Konu değiştiğinde yeniden abone ol
   useEffect(() => {
     // Önceki abonelikleri temizle
     sse.unsubscribe();
     ws.unsubscribe();
     
-    // Yeni konuya abone ol
-    sse.subscribe(topic, (data) => {
-      handleIncomingMessage({
-        type: SSEMessageType.MESSAGE,
-        data,
-        topic
-      }, 'sse');
+    // Tüm aktif konulara yeniden abone ol
+    activeTopics.forEach(topicName => {
+      sse.subscribe(topicName, (data: any) => {
+        handleIncomingMessage({
+          type: SSEMessageType.MESSAGE,
+          data,
+          topic: topicName
+        }, 'sse');
+      });
+      
+      ws.subscribe(topicName, (data: any) => {
+        handleIncomingMessage({
+          type: WebSocketMessageType.MESSAGE,
+          data,
+          topic: topicName
+        }, 'ws');
+      });
     });
-    
-    ws.subscribe(topic, (data) => {
-      handleIncomingMessage({
-        type: WebSocketMessageType.MESSAGE,
-        data,
-        topic
-      }, 'ws');
-    });
-  }, [topic]);
+  }, [activeTopics]);
   
   // Mesaj zamanını biçimlendir
   const formatTime = (date: Date) => {
@@ -188,156 +224,139 @@ const RealtimeExample: React.FC = () => {
   };
 
   return (
-    <div className="p-4 bg-white rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4">
-        Gerçek Zamanlı İletişim Örneği
-      </h2>
-      
-      {/* Bağlantı durumu */}
-      <div className="mb-4 flex flex-wrap gap-4">
-        <div className="flex items-center">
-          <div className={`w-3 h-3 rounded-full mr-2 ${sse.isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm">
-            SSE: {sse.isConnected ? 'Bağlı' : sse.isConnecting ? 'Bağlanıyor...' : 'Bağlantı Kesik'}
-          </span>
-          <div className="ml-2 flex space-x-1">
-            <button 
-              onClick={() => handleConnection('sse', 'connect')}
-              className="text-xs py-1 px-2 bg-blue-500 text-white rounded"
-              disabled={sse.isConnected}
-            >
-              Bağlan
-            </button>
-            <button 
-              onClick={() => handleConnection('sse', 'disconnect')}
-              className="text-xs py-1 px-2 bg-red-500 text-white rounded"
-              disabled={!sse.isConnected}
-            >
-              Kes
-            </button>
-            <button 
-              onClick={() => handleConnection('sse', 'reconnect')}
-              className="text-xs py-1 px-2 bg-yellow-500 text-white rounded"
-            >
-              Yenile
-            </button>
+    <div className="w-full max-w-md lg:max-w-2xl mx-auto p-4 sm:p-5">
+      <div className="glass-card gradient-bg p-5 sm:p-6 mb-8 animate-fade-in">
+        <h2 className="text-2xl font-bold mb-5 gradient-text flex items-center">
+          <i className="i-mdi-access-point-network mr-2 text-blue-500"></i>
+          Gerçek Zamanlı İletişim
+        </h2>
+        
+        {/* Bağlantı durumu kartları */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="glass-card-sm p-4 hover:shadow-lg hover:translate-y-[-2px] transform">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`w-3 h-3 rounded-full mr-2 ${sse.isConnected ? 'bg-success-500 animate-pulse' : 'bg-danger-500'}`}></div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  SSE: {sse.isConnected ? 'Bağlı' : sse.isConnecting ? 'Bağlanıyor...' : 'Bağlantı Kesik'}
+                </span>
+              </div>
+              <div className="flex space-x-1.5">
+                <button 
+                  onClick={() => handleConnection('sse', 'connect')}
+                  className={`text-xs py-1.5 px-3 rounded-full transition-all duration-200 ${sse.isConnected 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500' 
+                    : 'btn-primary text-xs py-1.5 px-3 rounded-full'}`}
+                  disabled={sse.isConnected}
+                >
+                  <i className="i-mdi-connection mr-1"></i>
+                  Bağlan
+                </button>
+                <button 
+                  onClick={() => handleConnection('sse', 'disconnect')}
+                  className={`text-xs py-1.5 px-3 rounded-full transition-all duration-200 ${!sse.isConnected 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500' 
+                    : 'btn-danger text-xs py-1.5 px-3 rounded-full'}`}
+                  disabled={!sse.isConnected}
+                >
+                  <i className="i-mdi-connection-off mr-1"></i>
+                  Kes
+                </button>
+                <button 
+                  onClick={() => handleConnection('sse', 'reconnect')}
+                  className="text-xs py-1.5 px-3 bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-all duration-200 active:scale-95 transform"
+                >
+                  <i className="i-mdi-refresh mr-1"></i>
+                  Yenile
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="glass-card-sm p-4 hover:shadow-lg hover:translate-y-[-2px] transform">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className={`w-3 h-3 rounded-full mr-2 ${ws.isConnected ? 'bg-success-500 animate-pulse' : 'bg-danger-500'}`}></div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  WebSocket: {ws.isConnected ? 'Bağlı' : ws.isConnecting ? 'Bağlanıyor...' : 'Bağlantı Kesik'}
+                </span>
+              </div>
+              <div className="flex space-x-1.5">
+                <button 
+                  onClick={() => handleConnection('ws', 'connect')}
+                  className={`text-xs py-1.5 px-3 rounded-full transition-all duration-200 ${ws.isConnected 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500' 
+                    : 'btn-primary text-xs py-1.5 px-3 rounded-full'}`}
+                  disabled={ws.isConnected}
+                >
+                  <i className="i-mdi-connection mr-1"></i>
+                  Bağlan
+                </button>
+                <button 
+                  onClick={() => handleConnection('ws', 'disconnect')}
+                  className={`text-xs py-1.5 px-3 rounded-full transition-all duration-200 ${!ws.isConnected 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-700 dark:text-gray-500' 
+                    : 'btn-danger text-xs py-1.5 px-3 rounded-full'}`}
+                  disabled={!ws.isConnected}
+                >
+                  <i className="i-mdi-connection-off mr-1"></i>
+                  Kes
+                </button>
+                <button 
+                  onClick={() => handleConnection('ws', 'reconnect')}
+                  className="text-xs py-1.5 px-3 bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-all duration-200 active:scale-95 transform"
+                >
+                  <i className="i-mdi-refresh mr-1"></i>
+                  Yenile
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
-        <div className="flex items-center">
-          <div className={`w-3 h-3 rounded-full mr-2 ${ws.isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm">
-            WebSocket: {ws.isConnected ? 'Bağlı' : ws.isConnecting ? 'Bağlanıyor...' : 'Bağlantı Kesik'}
-          </span>
-          <div className="ml-2 flex space-x-1">
-            <button 
-              onClick={() => handleConnection('ws', 'connect')}
-              className="text-xs py-1 px-2 bg-blue-500 text-white rounded"
-              disabled={ws.isConnected}
-            >
-              Bağlan
-            </button>
-            <button 
-              onClick={() => handleConnection('ws', 'disconnect')}
-              className="text-xs py-1 px-2 bg-red-500 text-white rounded"
-              disabled={!ws.isConnected}
-            >
-              Kes
-            </button>
-            <button 
-              onClick={() => handleConnection('ws', 'reconnect')}
-              className="text-xs py-1 px-2 bg-yellow-500 text-white rounded"
-            >
-              Yenile
-            </button>
+        {/* Konu yönetimi */}
+        <TopicManager 
+          activeTopics={activeTopics}
+          onAddTopic={addTopic}
+          onRemoveTopic={removeTopic}
+        />
+        
+        {/* Mesaj gönderme */}
+        <MessageForm 
+          activeTopics={activeTopics}
+          onSend={sendMessage}
+          onBroadcast={sendBroadcast}
+        />
+        
+        {/* Mesaj listesi */}
+        <MessageList 
+          messages={messages}
+          formatTime={formatTime}
+        />
+        
+        {/* Bilgi */}
+        <div className="glass-card-sm p-3.5 text-xs text-gray-600 dark:text-gray-400">
+          <div className="flex flex-wrap gap-y-2 gap-x-4">
+            <div className="flex items-center">
+              <i className="i-mdi-identifier mr-1.5 text-primary-500"></i>
+              <span className="font-medium mr-1">SSE ClientID:</span> 
+              <code className="bg-gray-100 dark:bg-gray-900 px-1.5 py-0.5 rounded text-2xs">{sse.clientId}</code>
+            </div>
+            <div className="flex items-center">
+              <i className="i-mdi-message-badge-outline mr-1.5 text-secondary-500"></i>
+              <span className="font-medium mr-1">Son mesaj:</span>
+              {sse.lastMessage ? formatTime(new Date(sse.lastMessage.timestamp || '')) : 'Yok'}
+            </div>
+            <div className="flex items-center">
+              <i className="i-mdi-tag-multiple mr-1.5 text-success-500"></i>
+              <span className="font-medium mr-1">Aktif konular:</span>
+              <span>{activeTopics.length}</span>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Konu aboneliği */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-1">
-          Konu
-        </label>
-        <input
-          type="text"
-          value={topic}
-          onChange={handleTopicChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          placeholder="Konu adı"
-        />
-        <div className="mt-1 text-xs text-gray-500">
-          Aktif konular: {sse.activeTopics.join(', ')}
-        </div>
-      </div>
-      
-      {/* Mesaj formu */}
-      <form onSubmit={sendMessage} className="mb-4">
-        <div className="flex space-x-2">
-          <input 
-            type="text" 
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Mesajınızı yazın..."
-          />
-          <button 
-            type="submit"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Gönder
-          </button>
-          <button
-            type="button"
-            onClick={sendBroadcast}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-          >
-            Broadcast
-          </button>
-        </div>
-      </form>
-      
-      {/* Mesaj listesi */}
-      <div className="border border-gray-200 rounded-md h-64 overflow-y-auto mb-2">
-        <div className="flex flex-col-reverse p-3 min-h-full">
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500 py-4">
-              Henüz mesaj yok
-            </div>
-          ) : (
-            messages.map((msg) => (
-              <div 
-                key={msg.id} 
-                className={`mb-2 p-2 rounded-lg ${
-                  msg.source === 'user' 
-                    ? 'bg-blue-100 ml-12' 
-                    : msg.source === 'sse' 
-                      ? 'bg-green-100 mr-12' 
-                      : 'bg-purple-100 mr-12'
-                }`}
-              >
-                <div className="text-sm">{msg.text}</div>
-                <div className="flex justify-between mt-1 text-xs text-gray-500">
-                  <span>
-                    {msg.source === 'user' ? 'Siz' : msg.source === 'sse' ? 'SSE' : 'WebSocket'}
-                    {msg.topic && ` (${msg.topic})`}
-                  </span>
-                  <span>{formatTime(msg.timestamp)}</span>
-                </div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-      
-      {/* Bilgi */}
-      <div className="text-xs text-gray-500">
-        <p>SSE ClientID: {sse.clientId}</p>
-        <p>Son mesaj: {sse.lastMessage ? formatTime(new Date(sse.lastMessage.timestamp || '')) : 'Yok'}</p>
       </div>
     </div>
   );
 };
 
-export default RealtimeExample; 
+export default RealtimeExample;

@@ -1,47 +1,68 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { cn } from '../../utils/cn';
 
-export interface GlassCardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'primary' | 'secondary' | 'success' | 'info' | 'warning' | 'danger';
-  elevated?: boolean;
-  hoverable?: boolean;
-  withAnimation?: boolean;
-  compact?: boolean;
-  withInnerShadow?: boolean;
+interface GlassCardProps {
+  children: ReactNode;
+  className?: string;
+  hoverEffect?: 'glow' | 'scale' | 'both' | 'none';
+  intensity?: 'light' | 'medium' | 'strong';
+  onClick?: () => void;
 }
 
 const GlassCard: React.FC<GlassCardProps> = ({
   children,
-  className,
-  variant = 'primary',
-  elevated = false,
-  hoverable = false,
-  withAnimation = false,
-  compact = false,
-  withInnerShadow = false,
-  ...props
+  className = '',
+  hoverEffect = 'both',
+  intensity = 'medium',
+  onClick
 }) => {
+  // Efekt yoğunluğuna göre sınıf belirleme
+  const getIntensityClasses = () => {
+    switch (intensity) {
+      case 'light':
+        return 'bg-white/5 border-white/20 shadow-sm';
+      case 'strong':
+        return 'bg-white/15 border-white/40 shadow-lg';
+      case 'medium':
+      default:
+        return 'bg-white/10 border-white/30 shadow-md';
+    }
+  };
+
+  // Hover efekti belirleme
+  const getHoverClasses = () => {
+    switch (hoverEffect) {
+      case 'glow':
+        return 'hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:border-white/50';
+      case 'scale':
+        return 'hover:scale-[1.02] hover:shadow-lg';
+      case 'both':
+        return 'hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] hover:border-white/50';
+      case 'none':
+      default:
+        return '';
+    }
+  };
+
   return (
     <div
-      className={cn(
-        'glass-card rounded-lg transition-all duration-300 relative',
-        {
-          'glass-gradient-primary': variant === 'primary',
-          'glass-gradient-secondary': variant === 'secondary',
-          'glass-gradient-success': variant === 'success',
-          'glass-gradient-info': variant === 'info',
-          'glass-gradient-warning': variant === 'warning',
-          'glass-gradient-danger': variant === 'danger',
-          'shadow-lg': elevated,
-          'hover:scale-[1.01] hover:shadow-xl cursor-pointer': hoverable,
-          'animate-fade-in': withAnimation,
-          'p-3': compact,
-          'p-6': !compact,
-          'inner-glass-shadow': withInnerShadow,
-        },
-        className
-      )}
-      {...props}
+      className={`
+        rounded-2xl
+        p-6
+        flex
+        flex-col
+        items-center
+        justify-center
+        backdrop-blur-md
+        border
+        transition-all
+        duration-300
+        cursor-${onClick ? 'pointer' : 'default'}
+        ${getIntensityClasses()}
+        ${getHoverClasses()}
+        ${className}
+      `}
+      onClick={onClick}
     >
       {/* Gradient overlay */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-br opacity-30
