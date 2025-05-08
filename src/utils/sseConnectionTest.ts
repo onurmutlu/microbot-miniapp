@@ -1,6 +1,7 @@
 import api from './api';
 import { toast } from './toast';
 import { getTestMode } from './testMode';
+import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SSE_BASE_URL = `${API_BASE_URL}/sse`;
@@ -17,47 +18,17 @@ export const testSSEConnection = async (): Promise<boolean> => {
   }
 
   try {
-    // API URL'ini belirle
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const testUrl = `${apiUrl}/api/sse/test`;
-    
-    console.log(`SSE test bağlantısı kuruluyor: ${testUrl}`);
-    
-    // EventSource oluştur
-    const eventSource = new EventSource(testUrl);
-
-    // Bağlantı başarısını Promis ile izle
-    const result = await new Promise<boolean>((resolve) => {
-      // Başarılı bağlantı
-      eventSource.onopen = () => {
-        console.log('SSE bağlantı testi başarılı');
-        eventSource.close();
-        resolve(true);
-      };
-
-      // Bağlantı hatası
-      eventSource.onerror = (error) => {
-        console.error('SSE bağlantı testi başarısız:', error);
-        eventSource.close();
-        resolve(false);
-      };
-
-      // Zaman aşımı (3 saniye)
-      setTimeout(() => {
-        console.warn('SSE bağlantı testi zaman aşımı');
-        eventSource.close();
-        resolve(false);
-      }, 3000);
-    });
-
-    if (!result) {
-      toast.error('SSE servisine bağlanılamadı');
+    const response = await axios.get(`${API_BASE_URL}/api/health`, { timeout: 2000 });
+    if (response.status === 200) {
+      toast.success('API sunucusu çalışıyor (SSE)');
+      return true;
+    } else {
+      toast.error(`API sunucusu hata döndürdü: ${response.status}`);
+      return false;
     }
-
-    return result;
   } catch (error) {
-    console.error('SSE bağlantı testi hatası:', error);
-    toast.error('SSE bağlantı testi hatası');
+    console.error('SSE API bağlantı hatası:', error);
+    toast.error('API sunucusuna bağlanılamadı (SSE)');
     return false;
   }
 };

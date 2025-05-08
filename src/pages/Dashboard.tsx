@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom';
 import { UsersIcon, ServerIcon, ClockIcon, BoltIcon, ArrowPathIcon, UserGroupIcon, ChatBubbleLeftRightIcon, DocumentTextIcon, ArrowTrendingUpIcon } from '@heroicons/react/24/outline';
 import { systemService, DashboardStats } from '../services/systemService';
 import Spinner from '../components/ui/Spinner';
+import { logoutUser } from '../utils/logout';
+import { getTestMode } from '../utils/testMode';
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -25,22 +28,70 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardStats = async () => {
     try {
+      // Hata durumunu sıfırla
+      setApiError(null);
+      
       const data = await systemService.getDashboardStats();
       setStats(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Dashboard istatistikleri yüklenirken hata oluştu:', error);
+      
+      // Test modunda hataları görmezden gel, mock veriler kullan
+      if (getTestMode()) {
+        console.log('Test modu: Mock dashboard verileri kullanılıyor');
+        setStats({
+          active_users: 156,
+          active_handlers: 12,
+          active_schedulers: 5,
+          messages_sent_today: 1250,
+          active_groups: 34,
+          total_templates: 87
+        });
+        return;
+      }
+      
+      // Kimlik doğrulama hatası kontrolü
+      if (error?.response?.status === 401) {
+        setApiError('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
+      } else {
+        setApiError('Dashboard verileri yüklenirken bir hata oluştu.');
+      }
     }
+  };
+
+  // Logout işlemi
+  const handleLogout = () => {
+    logoutUser();
   };
 
   return (
     <div className="container mx-auto px-4 py-8 animate-fade-in">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold glass-gradient">MicroBot Kontrol Paneli</h1>
+        
+        {/* Logout Butonu */}
+        <button 
+          onClick={handleLogout}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition-colors"
+        >
+          Çıkış Yap
+        </button>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <Spinner isLoading={isLoading} size="xl" variant="glassEffect" />
+        </div>
+      ) : apiError ? (
+        <div className="p-6 glass-card bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-center">
+          <div className="text-red-600 dark:text-red-400 mb-4 text-xl">{apiError}</div>
+          <button 
+            onClick={fetchDashboardStats} 
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 mx-auto"
+          >
+            <ArrowPathIcon className="w-5 h-5" />
+            Yeniden Dene
+          </button>
         </div>
       ) : (
         <>

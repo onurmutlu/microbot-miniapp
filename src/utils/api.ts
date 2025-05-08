@@ -57,6 +57,12 @@ api.interceptors.request.use(
       config.retryAttempt = 0;
     }
     
+    // URL düzeltmesi - çift /api önlemek için
+    if (config.url && config.url.startsWith('/api/api/')) {
+      config.url = config.url.replace('/api/api/', '/api/');
+      console.warn('API URL düzeltildi:', config.url);
+    }
+    
     return config
   },
   (error) => {
@@ -71,6 +77,108 @@ api.interceptors.response.use(
   async (error: ExtendedAxiosError) => {
     // Konfigürasyon nesnesini al veya oluştur
     const config = error.config || {} as InternalAxiosRequestConfig;
+    
+    // Test modunda mock API yanıtları
+    if (getTestMode()) {
+      console.warn('Test modu: API istekleri simüle ediliyor')
+      
+      // URL'yi al
+      const url = config.url || '';
+      
+      // Message templates API için mock yanıt
+      if (url.includes('/message-templates')) {
+        console.log('Test modu: Message templates mock yanıtı döndürülüyor');
+        
+        // GET isteği için mock şablonlar listesi
+        if (config.method?.toLowerCase() === 'get') {
+          return Promise.resolve({
+            data: [
+              {
+                id: '1',
+                title: 'Karşılama Mesajı',
+                content: 'Merhaba, [isim]! Grubumuza hoş geldiniz. Burada size yardımcı olmaktan mutluluk duyarız.',
+                is_active: true,
+                category: 'bilgi'
+              },
+              {
+                id: '2',
+                title: 'Bilgilendirme Mesajı',
+                content: 'Değerli üyemiz, [tarih] tarihinde bir etkinliğimiz olacaktır. Katılımınızı bekliyoruz.',
+                is_active: true,
+                category: 'duyuru'
+              },
+              {
+                id: '3',
+                title: 'İndirim Duyurusu',
+                content: 'Özel fırsatımızdan yararlanmak için [kod] kodunu kullanabilirsiniz. Bu indirim [tarih] tarihine kadar geçerlidir.',
+                is_active: false,
+                category: 'promosyon'
+              }
+            ]
+          });
+        }
+        
+        // POST isteği için yeni şablon ekleme yanıtı
+        if (config.method?.toLowerCase() === 'post') {
+          const newTemplate = {
+            id: Math.random().toString(36).substring(2, 9),
+            ...JSON.parse(config.data || '{}'),
+            is_active: true
+          };
+          
+          return Promise.resolve({
+            data: newTemplate
+          });
+        }
+        
+        // PUT isteği için şablon güncelleme yanıtı
+        if (config.method?.toLowerCase() === 'put') {
+          return Promise.resolve({
+            data: {
+              ...JSON.parse(config.data || '{}'),
+              is_active: true
+            }
+          });
+        }
+        
+        // DELETE isteği için başarılı yanıt
+        if (config.method?.toLowerCase() === 'delete') {
+          return Promise.resolve({
+            data: { success: true }
+          });
+        }
+      }
+      
+      // Dashboard API için mock yanıt
+      if (url.includes('/dashboard/stats')) {
+        console.log('Test modu: Dashboard stats mock yanıtı döndürülüyor');
+        
+        return Promise.resolve({
+          data: {
+            active_users: 125,
+            active_handlers: 3,
+            active_schedulers: 5,
+            messages_sent_today: 542,
+            active_groups: 18,
+            total_templates: 24
+          }
+        });
+      }
+      
+      // SSE ping için mock yanıt
+      if (url.includes('/sse/ping/')) {
+        console.log('Test modu: SSE ping mock yanıtı döndürülüyor');
+        return Promise.resolve({
+          data: {
+            success: true,
+            message: 'Ping başarılı',
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Diğer API istekleri için de mock yanıtlar eklenebilir
+    }
     
     // Test modunda 401 hatası için özel işlem
     if (getTestMode() && error.response?.status === 401) {

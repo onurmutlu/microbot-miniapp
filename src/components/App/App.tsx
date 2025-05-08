@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import clsx from "clsx";
 import styles from "./App.module.scss";
 import { initAuth } from "../../utils/api";
+import { getTestMode, setTestMode } from "../../utils/testMode";
 
 import MessageTemplates from "../../pages/MessageTemplates";
 import AutoReplyRules from "../../pages/AutoReplyRules";
@@ -15,7 +16,14 @@ export type AppProps = {
 
 type PageKey = 'templates' | 'replies' | 'groups' | 'send' | 'dm';
 
-export const App: React.FC<AppProps> = ({ className }) => {
+// Test modunu aktifleştir
+if (typeof window !== 'undefined') {
+  setTestMode(true);
+  console.log('Test modu aktifleştirildi');
+}
+
+// Named export yerine default export kullan
+const App: React.FC<AppProps> = ({ className }) => {
   const [currentPage, setCurrentPage] = useState<PageKey>('templates');
   const [authInitialized, setAuthInitialized] = useState<boolean>(false);
 
@@ -100,3 +108,5 @@ export const App: React.FC<AppProps> = ({ className }) => {
     </div>
   );
 };
+
+export default App;

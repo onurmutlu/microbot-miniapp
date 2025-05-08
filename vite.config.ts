@@ -48,13 +48,36 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
   },
   server: {
     host: true,
     port: 5176,
-    strictPort: true,
-    cors: true,
+    strictPort: false,
+    cors: {
+      origin: '*'
+    },
+    hmr: {
+      clientPort: 5176,
+      protocol: 'ws',
+      host: 'localhost',
+      overlay: true
+    },
+    open: true,
+    watch: {
+      usePolling: false
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:8000'),
+    'import.meta.env.VITE_TEST_MODE': JSON.stringify(process.env.VITE_TEST_MODE || 'true')
+  }
 })

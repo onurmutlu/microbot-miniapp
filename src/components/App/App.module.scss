@@ -2,10 +2,10 @@
   @apply flex w-full flex-col items-center justify-center;
 
   .container {
-    @apply flex flex-col items-center justify-center gap-4 bg-secondaryBg rounded-lg p-10 duration-300;
+    @apply flex flex-col items-center justify-center gap-4 bg-gray-100 dark:bg-gray-800 rounded-lg p-10 duration-300;
 
     &:hover {
-      @apply shadow-md shadow-button
+      @apply shadow-md shadow-gray-300 dark:shadow-gray-700
     }
   }
 
@@ -14,18 +14,18 @@
   }
 
   .githubLink {
-    @apply link text-link;
+    @apply text-blue-600 dark:text-blue-400;
 
     &:hover {
-      @apply underline text-link;
+      @apply underline text-blue-700 dark:text-blue-500;
     }
   }
 
   .clickMe {
-    @apply btn btn-sm btn-solid-primary bg-button text-buttonText;
+    @apply px-4 py-2 rounded-lg font-medium bg-blue-500 text-white;
 
     &:hover {
-      @apply brightness-110 bg-button;
+      @apply brightness-110 bg-blue-600;
     }
   }
 }

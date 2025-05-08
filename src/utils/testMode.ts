@@ -6,7 +6,8 @@
  */
 export const setTestMode = (enabled: boolean): void => {
   try {
-    localStorage.setItem('test_mode', enabled ? 'true' : 'false');
+    // Tek bir noktada localStorage kaydı yapıyoruz, tekrarlı kayıt yapmıyoruz
+    localStorage.setItem('testMode', enabled.toString());
     console.log(`Test modu ${enabled ? 'etkinleştirildi' : 'devre dışı bırakıldı'}`);
     
     // Test modu göstergesini güncelle
@@ -21,27 +22,9 @@ export const setTestMode = (enabled: boolean): void => {
  * @returns Test modu etkin mi?
  */
 export const getTestMode = (): boolean => {
-  try {
-    // Otomatik geliştirme ortamı tespiti - localhost veya 192.168 ile başlayan IP adresleri
-    const isDevEnvironment = window.location.hostname === 'localhost' || 
-      window.location.hostname.startsWith('127.0.0.1') || 
-      window.location.hostname.startsWith('192.168.') ||
-      window.location.hostname.includes('.local');
-    
-    // Yerel depolamada test modu ayarı var mı?
-    const testModeStorage = localStorage.getItem('test_mode');
-    
-    // Eğer açıkça ayarlanmışsa, o değeri kullan
-    if (testModeStorage !== null) {
-      return testModeStorage === 'true';
-    }
-    
-    // Geliştirme ortamında varsayılan olarak test modunu etkinleştir
-    return true; // Her zaman true döndür
-  } catch (error) {
-    console.error('Test modu kontrolü sırasında hata:', error);
-    return true; // Hata durumunda da true döndür
-  }
+  // Test modunu varsayılan olarak açık yap
+  const savedMode = localStorage.getItem('testMode');
+  return savedMode === null ? true : savedMode === 'true';
 };
 
 /**
@@ -115,10 +98,4 @@ if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', updateTestModeIndicator);
 }
 
-export default {
-  getTestMode,
-  setTestMode,
-  renderTestModeIndicator,
-  runInTestMode,
-  updateTestModeIndicator
-}; 
+export default getTestMode; 

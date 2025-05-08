@@ -110,6 +110,23 @@ class WebSocketClient {
   // Durum değişikliği için dinleyiciler
   private stateListeners: Set<(state: WebSocketState) => void> = new Set();
   
+  // Test modu için simülasyon görevleri
+  private testModeTimers: NodeJS.Timeout[] = [];
+  private mockReconnectManager = {
+    connection_succeeded: true,
+    resetRetryCount: () => {},
+    reconnect_delay: 3000,
+    next_attempt_time: 0
+  };
+  
+  // ReconnectManager - SSE servisi ile uyumlu olması için
+  public reconnectManager = {
+    connection_succeeded: false,
+    resetRetryCount: () => { this.reconnectAttempt = 0; },
+    reconnect_delay: 3000,
+    next_attempt_time: 0
+  };
+  
   constructor(config: WebSocketConfig = {}) {
     // Varsayılan yapılandırma değerleri
     const defaultConfig: Required<WebSocketConfig> = {
@@ -148,7 +165,105 @@ class WebSocketClient {
         }
       });
       this.log('Test modu aktif: WebSocket bağlantısı simüle ediliyor');
+      
+      // Test modu için periyodik mesajlar
+      this.setupTestModeSimulation();
     }
+  }
+  
+  // Test modu simülasyonu kurulum
+  private setupTestModeSimulation(): void {
+    if (!getTestMode()) return;
+    
+    // Tüm eski zamanlayıcıları temizle
+    this.clearTestModeTimers();
+    
+    // Her 30 saniyede bir rastgele ping mesajı
+    const pingTimer = setInterval(() => {
+      const mockPingMessage: WebSocketMessage = {
+        type: WebSocketMessageType.PING,
+        timestamp: new Date().toISOString(),
+        client_id: this.clientId
+      };
+      
+      // Test pong mesajını işle
+      setTimeout(() => {
+        const mockPongMessage: WebSocketMessage = {
+          type: WebSocketMessageType.PONG,
+          timestamp: new Date().toISOString(),
+          client_id: this.clientId,
+          data: {
+            latency: Math.floor(Math.random() * 100) + 10
+          }
+        };
+        
+        this.updateState({
+          lastMessage: mockPongMessage,
+          connectionStats: {
+            ...this._state.connectionStats,
+            lastLatency: mockPongMessage.data.latency,
+            avgLatency: this._state.connectionStats.avgLatency ? 
+              (this._state.connectionStats.avgLatency * 0.7 + mockPongMessage.data.latency * 0.3) : 
+              mockPongMessage.data.latency
+          }
+        });
+        
+        // Abone olan dinleyicileri bilgilendir
+        this.notifySubscribers(mockPongMessage);
+        
+      }, Math.floor(Math.random() * 100) + 20);
+      
+    }, 30000);
+    
+    // Her 2 dakikada bir durum mesajı
+    const statusTimer = setInterval(() => {
+      const mockStatusMessage: WebSocketMessage = {
+        type: WebSocketMessageType.STATUS,
+        timestamp: new Date().toISOString(),
+        client_id: this.clientId,
+        data: {
+          client_count: Math.floor(Math.random() * 50) + 1,
+          server_uptime: Math.floor(Math.random() * 86400) + 3600,
+          server_status: 'healthy'
+        }
+      };
+      
+      this.updateState({
+        lastMessage: mockStatusMessage
+      });
+      
+      // Abone olan dinleyicileri bilgilendir
+      this.notifySubscribers(mockStatusMessage);
+      
+    }, 120000);
+    
+    // Zamanlayıcıları kaydet
+    this.testModeTimers.push(pingTimer, statusTimer);
+    
+    this.log('Test modu: WebSocket simülasyonu başlatıldı');
+  }
+  
+  // Test modu zamanlayıcılarını temizle
+  private clearTestModeTimers(): void {
+    this.testModeTimers.forEach(timer => clearInterval(timer));
+    this.testModeTimers = [];
+  }
+  
+  // Test modu için aboneleri bilgilendir
+  private notifySubscribers(message: WebSocketMessage): void {
+    if (message.topic && this.subscriptions.has(message.topic)) {
+      const callbacks = this.subscriptions.get(message.topic)!;
+      callbacks.forEach(callback => {
+        try {
+          callback(message.data);
+        } catch (error) {
+          this.log(`Test modu: Abone callback hatası (${message.topic}):`, error);
+        }
+      });
+    }
+    
+    // Kullanıcı callback'ini çağır
+    this.config.onMessage(message);
   }
   
   // Durum bilgilerini al
@@ -198,6 +313,12 @@ class WebSocketClient {
   // WebSocket bağlantısını başlat
   public connect(): void {
     if (getTestMode()) {
+      // ReconnectManager durumunu güncelle
+      if (this.reconnectManager) {
+        this.reconnectManager.connection_succeeded = true;
+        this.reconnectManager.next_attempt_time = 0;
+      }
+      
       this.updateState({ 
         isConnected: true, 
         isConnecting: false,
@@ -240,6 +361,25 @@ class WebSocketClient {
   public disconnect(force = false): void {
     this.forceClosed = force;
     
+    // Test modunda bağlantı kesme simülasyonu
+    if (getTestMode()) {
+      this.clearTestModeTimers();
+      
+      if (force) {
+        this.updateState({
+          isConnected: false,
+          isConnecting: false,
+          connectionStats: {
+            ...this._state.connectionStats,
+            connectedSince: null,
+            disconnectionCount: this._state.connectionStats.disconnectionCount + 1
+          }
+        });
+        this.log('Test modu: WebSocket bağlantısı manuel olarak kapatıldı (simülasyon)');
+      }
+      return;
+    }
+    
     // Zamanlayıcıları temizle
     this.clearTimers();
     
@@ -270,8 +410,29 @@ class WebSocketClient {
   
   // Bağlantıyı tekrar kur
   public reconnect(): void {
-    this.forceClosed = false;
+    if (getTestMode()) {
+      this.log('Test modu: Yeniden bağlantı simüle ediliyor');
+      
+      // Test modunda başarılı bağlantı simülasyonu
+      setTimeout(() => {
+        this.updateState({
+          isConnected: true,
+          isConnecting: false,
+          reconnectAttempt: 0,
+          error: null,
+          connectionStats: {
+            ...this._state.connectionStats,
+            connectedSince: Date.now(),
+            totalReconnects: this._state.connectionStats.totalReconnects + 1
+          }
+        });
+      }, 500);
+      
+      return;
+    }
+    
     this.disconnect();
+    this.reconnectAttempt = 0; // Sayacı sıfırla
     this.connect();
   }
   
@@ -414,6 +575,12 @@ class WebSocketClient {
     // Bağlantı performansını kaydet
     this.recordConnectionPerformance(connectionTime, true);
     
+    // ReconnectManager durumunu güncelle - BackEnd'e gönderilecek
+    if (this.reconnectManager) {
+      this.reconnectManager.connection_succeeded = true;
+      this.reconnectManager.next_attempt_time = 0;
+    }
+    
     this.updateState({
       isConnected: true,
       isConnecting: false,
@@ -439,6 +606,7 @@ class WebSocketClient {
     this.send(WebSocketMessageType.CONNECTION, {
       status: 'connected',
       reconnect_attempt: this.reconnectAttempt,
+      reconnect_manager: this.reconnectManager, // Reconnect manager durumunu gönder
       client_info: {
         user_agent: navigator.userAgent,
         language: navigator.language,
@@ -452,8 +620,7 @@ class WebSocketClient {
   
   // Kapanma olayını işle
   private handleClose(event: CloseEvent): void {
-    this.log(`WebSocket bağlantısı kapandı: ${event.code} ${event.reason}`);
-    
+    // WebSocket kapandığında
     this.updateState({
       isConnected: false,
       isConnecting: false,
@@ -467,32 +634,45 @@ class WebSocketClient {
     // Zamanlayıcıları temizle
     this.clearTimers();
     
-    // Zorla kapatılmadıysa yeniden bağlan
-    if (!this.forceClosed && !getTestMode()) {
-      this.scheduleReconnect();
+    // Test modunda bağlantı kesinti simülasyonu yapma
+    if (getTestMode()) {
+      this.log('Test modu: WebSocket bağlantısı kesildi (simülasyon)');
+      return;
     }
     
-    // Yapılandırma callback'ini çağır
+    if (!this.forceClosed) {
+      // Kullanıcı tarafından kapatılmadıysa otomatik yeniden bağlan
+      this.log(`Bağlantı kesildi (${event.code}): ${event.reason || 'Bilinmeyen neden'}`);
+      this.scheduleReconnect();
+    } else {
+      this.log('Bağlantı manuel olarak kapatıldı, yeniden bağlanma devre dışı.');
+      this.forceClosed = false;
+    }
+    
+    // Kullanıcı callback'ini çağır
     this.config.onClose(event);
   }
   
   // Hata olayını işle
   private handleError(event: Event): void {
-    this.log('WebSocket bağlantı hatası:', event);
+    // WebSocket hatası oluştuğunda
+    const errorMessage = event instanceof ErrorEvent ? event.message : 'WebSocket bağlantı hatası';
     
-    const error = event instanceof ErrorEvent ? new Error(event.message) : new Error('WebSocket error');
-    
+    // Hata durumunu güncelle
     this.updateState({
-      error,
-      isConnecting: false
+      error: new Error(errorMessage)
     });
     
-    // Bağlantı denemesi başarısız oldu, performans ölçümünü kaydet
-    if (this.connectionStartTime > 0) {
-      this.recordConnectionPerformance(Date.now() - this.connectionStartTime, false);
+    // Test modunda hata oluştuğunda
+    if (getTestMode()) {
+      this.log('Test modu: WebSocket bağlantı hatası (simülasyon)', errorMessage);
+      return;
     }
     
-    // Yapılandırma callback'ini çağır
+    // Hatayı logla
+    this.log('WebSocket hatası:', errorMessage);
+    
+    // Kullanıcı callback'ini çağır
     this.config.onError(event);
   }
   
@@ -527,7 +707,10 @@ class WebSocketClient {
           
         case WebSocketMessageType.PING:
           // Ping'e yanıt olarak pong gönder
-          this.send(WebSocketMessageType.PONG);
+          this.send(WebSocketMessageType.PONG, {
+            client_id: this.clientId,
+            reconnect_manager: this.reconnectManager
+          });
           break;
           
         case WebSocketMessageType.STATUS:
@@ -587,6 +770,13 @@ class WebSocketClient {
     if (this.reconnectAttempt <= this.config.maxReconnectAttempts) {
       // Yeniden bağlanma stratejisine göre gecikme hesapla
       const delay = this.calculateReconnectDelay();
+      
+      // ReconnectManager durumunu güncelle
+      if (this.reconnectManager) {
+        this.reconnectManager.connection_succeeded = false;
+        this.reconnectManager.reconnect_delay = delay;
+        this.reconnectManager.next_attempt_time = Date.now() + delay;
+      }
       
       this.log(`WebSocket yeniden bağlanma denemesi ${this.reconnectAttempt}/${this.config.maxReconnectAttempts} - ${delay}ms sonra`);
       

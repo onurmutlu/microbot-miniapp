@@ -14,7 +14,15 @@ import {
   XMarkIcon,
   Bars3Icon,
   ShieldCheckIcon,
-  UserIcon
+  UserIcon,
+  ChartBarIcon,
+  BellIcon,
+  ClockIcon,
+  QueueListIcon,
+  ArrowPathIcon,
+  CodeBracketIcon,
+  CommandLineIcon,
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -29,7 +37,15 @@ import {
   PaperAirplaneIcon as PaperAirplaneSolidIcon,
   ChatBubbleOvalLeftEllipsisIcon as ChatBubbleSolidIcon,
   ShieldCheckIcon as ShieldCheckSolidIcon,
-  UserIcon as UserSolidIcon
+  UserIcon as UserSolidIcon,
+  ChartBarIcon as ChartBarSolidIcon,
+  BellIcon as BellSolidIcon,
+  ClockIcon as ClockSolidIcon,
+  QueueListIcon as QueueListSolidIcon,
+  ArrowPathIcon as ArrowPathSolidIcon,
+  CodeBracketIcon as CodeBracketSolidIcon,
+  CommandLineIcon as CommandLineSolidIcon,
+  DevicePhoneMobileIcon as DevicePhoneMobileSolidIcon
 } from '@heroicons/react/24/solid'
 
 import { TbTemplate, TbAutomation, TbUsers, TbMessage, TbDeviceMobile, TbCalendarTime, TbBrandTelegram, TbWaveSine } from 'react-icons/tb';
@@ -58,18 +74,38 @@ const Sidebar: React.FC = () => {
   }, []);
 
   const menuItems = [
+    // Ana Modüller
     { 
-      path: '/', 
+      path: '/dashboard', 
       name: 'Kontrol Paneli', 
       icon: HomeIcon,
       activeIcon: HomeSolidIcon 
     },
     { 
+      path: '/statistics', 
+      name: 'İstatistikler', 
+      icon: ChartBarIcon,
+      activeIcon: ChartBarSolidIcon 
+    },
+    { 
       path: '/sessions', 
       name: 'Telegram Hesaplarım', 
       icon: UserIcon,
-      activeIcon: UserSolidIcon 
+      activeIcon: UserSolidIcon,
+      badge: !hasActiveSession ? {
+        text: "Gerekli",
+        color: "bg-red-500"
+      } : null
     },
+    {
+      path: '/login',
+      name: 'Giriş Yap',
+      icon: ShieldCheckIcon,
+      activeIcon: ShieldCheckSolidIcon,
+      divider: true
+    },
+    
+    // Mesajlaşma Modülleri
     { 
       path: '/message-templates', 
       name: 'Mesaj Şablonları', 
@@ -83,12 +119,6 @@ const Sidebar: React.FC = () => {
       activeIcon: ChatSolidIcon 
     },
     { 
-      path: '/group-list', 
-      name: 'Grup Listesi', 
-      icon: UserGroupIcon,
-      activeIcon: UserGroupSolidIcon 
-    },
-    { 
       path: '/message-send', 
       name: 'Mesaj Gönder', 
       icon: PaperAirplaneIcon,
@@ -98,13 +128,43 @@ const Sidebar: React.FC = () => {
       path: '/dm-panel', 
       name: 'DM Paneli', 
       icon: ChatBubbleOvalLeftEllipsisIcon,
-      activeIcon: ChatBubbleSolidIcon 
+      activeIcon: ChatBubbleSolidIcon,
+      divider: true
     },
+    
+    // Grup Yönetimi
+    { 
+      path: '/group-list', 
+      name: 'Grup Listesi', 
+      icon: UserGroupIcon,
+      activeIcon: UserGroupSolidIcon 
+    },
+    {
+      path: '/group-management',
+      name: 'Grup Yönetimi',
+      icon: QueueListIcon,
+      activeIcon: QueueListSolidIcon
+    },
+    {
+      path: '/member-tracking',
+      name: 'Üye Takibi',
+      icon: ({ className }: { className?: string }) => <TbUsers className={className} />,
+      activeIcon: ({ className }: { className?: string }) => <TbUsers className={className} />,
+      divider: true
+    },
+    
+    // Zamanlanmış Görevler
     { 
       path: '/scheduler', 
       name: 'Zamanlayıcı', 
       icon: CalendarIcon,
       activeIcon: CalendarSolidIcon 
+    },
+    {
+      path: '/recurring-tasks',
+      name: 'Yinelenen Görevler',
+      icon: ArrowPathIcon,
+      activeIcon: ArrowPathSolidIcon
     },
     { 
       path: '/cron-guide', 
@@ -112,6 +172,14 @@ const Sidebar: React.FC = () => {
       icon: BookOpenIcon,
       activeIcon: BookSolidIcon,
       divider: true
+    },
+
+    // Bildirimler ve SSE
+    {
+      path: '/notifications',
+      name: 'Bildirimler',
+      icon: BellIcon,
+      activeIcon: BellSolidIcon
     },
     {
       path: '/sse-demo',
@@ -126,21 +194,47 @@ const Sidebar: React.FC = () => {
       activeIcon: ({ className }: { className?: string }) => <FiRadio className={className} />,
       divider: true
     },
+    
+    // MiniApp ve Botlar
+    {
+      path: '/miniapp',
+      name: 'MiniApp Demo',
+      icon: DevicePhoneMobileIcon,
+      activeIcon: DevicePhoneMobileSolidIcon
+    },
+    {
+      path: '/telegram-api',
+      name: 'Telegram API',
+      icon: ({ className }: { className?: string }) => <TbBrandTelegram className={className} />,
+      activeIcon: ({ className }: { className?: string }) => <TbBrandTelegram className={className} />,
+      divider: true
+    },
+    
+    // Sistem ve Ayarlar
     { 
       path: '/system-status', 
       name: 'Sistem Durumu', 
       icon: ServerIcon,
       activeIcon: ServerSolidIcon 
     },
+    {
+      path: '/system/errors',
+      name: 'Hata Raporları',
+      icon: CodeBracketIcon,
+      activeIcon: CodeBracketSolidIcon
+    },
+    {
+      path: '/system/websocket',
+      name: 'WebSocket Yönetimi',
+      icon: CommandLineIcon,
+      activeIcon: CommandLineSolidIcon,
+      divider: true
+    },
     { 
       path: '/settings', 
       name: 'Ayarlar', 
       icon: Cog6ToothIcon,
-      activeIcon: CogSolidIcon,
-      badge: !hasActiveSession ? {
-        text: "Oturum Gerekli",
-        color: "bg-red-500"
-      } : null
+      activeIcon: CogSolidIcon
     }
   ]
 
@@ -245,7 +339,7 @@ const Sidebar: React.FC = () => {
           {/* Sürüm bilgisi */}
           <div className="p-4 border-t border-gray-200/30 dark:border-gray-700/30 glass-gradient-secondary">
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              MicroBot v1.0.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0] animate-pulse">Beta</span>
+              MicroBot v1.5.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0] animate-pulse">Beta</span>
             </p>
           </div>
         </div>

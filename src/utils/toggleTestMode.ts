@@ -6,20 +6,20 @@ import { toast } from './toast';
  * Bu fonksiyona tarayıcı konsolundan "toggleTestMode()" ile erişilebilir
  * @returns Yeni test modu durumu
  */
-export const toggleTestMode = (): boolean => {
+export const toggleTestMode = () => {
   const currentMode = getTestMode();
   const newMode = !currentMode;
   
+  // Test modunu değiştir
   setTestMode(newMode);
   
-  // Bildirim göster
-  if (newMode) {
-    toast.success('Test modu etkinleştirildi. Gerçek API bağlantıları kullanılmayacak.');
-    console.log('📱 Test modu etkinleştirildi');
-  } else {
-    toast.info('Test modu devre dışı bırakıldı. Gerçek API bağlantıları kullanılacak.');
-    console.log('📱 Test modu devre dışı bırakıldı');
-  }
+  // Kullanıcıya bildiri
+  console.log(`Test modu ${newMode ? 'aktif' : 'devre dışı'}`);
+  
+  // Sayfayı yenile
+  setTimeout(() => {
+    window.location.reload();
+  }, 500);
   
   return newMode;
 };

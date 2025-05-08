@@ -1,5 +1,5 @@
-import api from './api';
-import { toast } from 'react-toastify';
+import axios from 'axios';
+import { toast } from './toast';
 import { getTestMode } from './testMode';
 
 // API_BASE_URL'yi api.ts'den alıyoruz
@@ -15,7 +15,7 @@ export async function testApiConnection(): Promise<boolean> {
   }
 
   try {
-    const response = await api.get('/health');
+    const response = await axios.get('/health');
     return response.status === 200;
   } catch (error) {
     console.error('API bağlantı hatası:', error);

@@ -1,13 +1,20 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { toast } from 'react-toastify';
+import { getTestMode } from '../utils/testMode';
 
 class ApiService {
   private api: AxiosInstance;
   private token: string | null = null;
 
   constructor() {
+    // API URL yapılandırmasını düzeltiyoruz
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const normalizedBaseURL = baseURL.endsWith('/api') 
+      ? baseURL 
+      : `${baseURL}/api`;
+    
     this.api = axios.create({
-      baseURL: import.meta.env.VITE_API_URL,
+      baseURL: normalizedBaseURL,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -23,7 +30,19 @@ class ApiService {
       (config) => {
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
+        } else {
+          // localStorage'dan token al
+          const token = localStorage.getItem('access_token');
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
+        
+        // Test modu kontrolü
+        if (getTestMode()) {
+          config.headers['X-Test-Mode'] = 'true';
+        }
+        
         return config;
       },
       (error) => {

@@ -1,24 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { SignalIcon, ExclamationTriangleIcon, SignalSlashIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
-import webSocketClient from '../../services/WebSocketClient';
-import { Tooltip } from 'react-tooltip';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { SignalIcon, ExclamationTriangleIcon, SignalSlashIcon, ArrowPathIcon } from "@heroicons/react/24/solid";
+import webSocketClient from "../../services/WebSocketClient";
+import { Tooltip } from "react-tooltip";
 
-interface WebSocketStatusIndicatorProps {
-  showDetails?: boolean;
-  showTooltip?: boolean;
-}
-
-const WebSocketStatusIndicator: React.FC<WebSocketStatusIndicatorProps> = ({ 
+const WebSocketStatusIndicator = ({
   showDetails = false,
-  showTooltip = true 
+  className = "",
+  showTooltip = true
 }) => {
-  const [state, setState] = useState(webSocketClient.state);
+  const [status, setStatus] = useState(webSocketClient.isConnected ? "connected" : "disconnected");
+  const [lastError, setLastError] = useState<Error | null>(null);
   
   useEffect(() => {
-    // WebSocket state değişikliklerini dinle
-    const unsubscribe = webSocketClient.onStateChange(newState => {
-      setState(newState);
+    // WebSocket durumunu izle
+    const unsubscribe = webSocketClient.onStateChange((newState) => {
+      setStatus(newState.isConnected ? "connected" : newState.isConnecting ? "connecting" : "disconnected");
+      setLastError(newState.error);
     });
     
     return () => {
@@ -26,102 +23,55 @@ const WebSocketStatusIndicator: React.FC<WebSocketStatusIndicatorProps> = ({
     };
   }, []);
   
-  // Bağlantı durumu için renk
-  const getStatusColor = () => {
-    if (state.isConnected) return 'text-green-500 dark:text-green-400';
-    if (state.isConnecting) return 'text-amber-500 dark:text-amber-400';
-    if (state.error) return 'text-red-500 dark:text-red-400';
-    return 'text-gray-500 dark:text-gray-400';
+  const getStatusDetails = () => {
+    switch (status) {
+      case "connected":
+        return "WebSocket bağlantısı aktif";
+      case "connecting":
+        return "WebSocket bağlantısı kuruluyor...";
+      case "disconnected":
+        return lastError 
+          ? `WebSocket bağlantısı kesildi: ${lastError.message}` 
+          : "WebSocket bağlantısı kapalı";
+      default:
+        return "WebSocket durumu bilinmiyor";
+    }
   };
   
-  // Bağlantı durumu için ikon
-  const getStatusIcon = () => {
-    if (state.isConnected) {
-      return <SignalIcon className={`h-5 w-5 ${getStatusColor()}`} />;
+  const renderIcon = () => {
+    switch (status) {
+      case "connected":
+        return <SignalIcon className="h-5 w-5 text-green-500" />;
+      case "connecting":
+        return <ArrowPathIcon className="h-5 w-5 text-yellow-500 animate-spin" />;
+      case "disconnected":
+        return lastError 
+          ? <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+          : <SignalSlashIcon className="h-5 w-5 text-gray-500" />;
+      default:
+        return null;
     }
-    
-    if (state.isConnecting) {
-      return <ArrowPathIcon className={`h-5 w-5 ${getStatusColor()} animate-spin`} />;
-    }
-    
-    if (state.error) {
-      return <ExclamationTriangleIcon className={`h-5 w-5 ${getStatusColor()}`} />;
-    }
-    
-    return <SignalSlashIcon className={`h-5 w-5 ${getStatusColor()}`} />;
-  };
-  
-  // Bağlantı durumu mesajı
-  const getStatusMessage = () => {
-    if (state.isConnected) return 'Bağlı';
-    if (state.isConnecting) return 'Bağlanıyor...';
-    if (state.error) return 'Bağlantı Hatası';
-    return 'Bağlantı Kesildi';
-  };
-  
-  // Bağlantı durumu açıklaması
-  const getStatusDescription = () => {
-    if (state.isConnected) {
-      if (state.connectionStats.connectedSince) {
-        const connectedSince = new Date(state.connectionStats.connectedSince);
-        const now = new Date();
-        const diffMs = now.getTime() - connectedSince.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        
-        return `${diffMins} dakikadır bağlı`;
-      }
-      return 'WebSocket bağlantısı aktif';
-    }
-    
-    if (state.isConnecting) {
-      return `Yeniden bağlanıyor (${state.reconnectAttempt}. deneme)`;
-    }
-    
-    if (state.error) {
-      return `Hata: ${state.error.message}`;
-    }
-    
-    return 'WebSocket bağlantısı kesildi';
-  };
-  
-  // Gecikme bilgisi için renk
-  const getLatencyColor = () => {
-    const latency = state.connectionStats.lastLatency;
-    if (!latency) return 'text-gray-500 dark:text-gray-400';
-    
-    if (latency < 100) return 'text-green-500 dark:text-green-400';
-    if (latency < 300) return 'text-amber-500 dark:text-amber-400';
-    return 'text-red-500 dark:text-red-400';
   };
   
   return (
-    <>
+    <div className={`relative ${className}`}>
       <div 
-        className={`flex items-center ${showDetails ? 'space-x-2' : ''}`}
+        className="relative cursor-help"
         data-tooltip-id="ws-status-tooltip"
-        data-tooltip-content={getStatusDescription()}
+        data-tooltip-content={getStatusDetails()}
       >
-        {getStatusIcon()}
-        
+        {renderIcon()}
         {showDetails && (
-          <div className="flex flex-col">
-            <span className={`text-xs font-semibold ${getStatusColor()}`}>
-              {getStatusMessage()}
-            </span>
-            
-            {state.isConnected && state.connectionStats.lastLatency && (
-              <span className={`text-xs ${getLatencyColor()}`}>
-                {state.connectionStats.lastLatency}ms
-              </span>
-            )}
-          </div>
+          <span className="ml-2 text-sm hidden sm:inline-block">
+            {getStatusDetails()}
+          </span>
         )}
       </div>
       
       {showTooltip && (
         <Tooltip id="ws-status-tooltip" place="bottom" className="z-50" />
       )}
-    </>
+    </div>
   );
 };
 

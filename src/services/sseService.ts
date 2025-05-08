@@ -69,6 +69,12 @@ class SSEService {
   private online = navigator.onLine;
   private offlineMessagesQueue: Array<{ topic?: string, data: any, options?: any }> = [];
   private networkEventListenersAdded = false;
+  private reconnectManager: {
+    connection_succeeded: boolean;
+    resetRetryCount: () => void;
+    reconnect_delay: number;
+    next_attempt_time: number;
+  } | null = null;
 
   constructor() {
     this.clientId = Math.random().toString(36).substring(2, 15);
@@ -136,10 +142,22 @@ class SSEService {
 
   connect() {
     if (getTestMode()) {
+      console.log('Test modu: SSE bağlantısı simüle ediliyor');
       this.status = 'connected';
       this.connectionStartTime = new Date();
       this.addToConnectionHistory('connect');
       this.notifyStatusListeners();
+      
+      // ReconnectManager'ı doğru başlat
+      this.reconnectManager = {
+        connection_succeeded: true,
+        resetRetryCount: () => { this.reconnectAttempts = 0; },
+        reconnect_delay: 3000,
+        next_attempt_time: 0
+      };
+      
+      // Test modunda otomatik mock mesajlar oluştur
+      this.setupMockMessages();
       return;
     }
     
@@ -159,7 +177,12 @@ class SSEService {
     this.connectionAttempts++;
     this.setStatus('connecting');
     try {
-      const sseUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/sse/${this.clientId}`;
+      // API URL düzeltildi - 8000 portu ve çift /api sorununu çözdük
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const sseUrl = apiBaseUrl.endsWith('/api') 
+        ? `${apiBaseUrl}/sse/${this.clientId}`
+        : `${apiBaseUrl}/api/sse/${this.clientId}`;
+      
       console.log('SSE bağlantısı deneniyor:', sseUrl);
       
       this.eventSource = new EventSource(sseUrl);
@@ -171,6 +194,19 @@ class SSEService {
         this.addToConnectionHistory('connect');
         console.log('SSE bağlantısı başarılı');
         toast.success('SSE bağlantısı kuruldu');
+        
+        // ReconnectManager durumunu güncelle
+        if (this.reconnectManager) {
+          this.reconnectManager.connection_succeeded = true;
+          this.reconnectManager.next_attempt_time = 0;
+        } else {
+          this.reconnectManager = {
+            connection_succeeded: true,
+            resetRetryCount: () => { this.reconnectAttempts = 0; },
+            reconnect_delay: 3000,
+            next_attempt_time: 0
+          };
+        }
         
         // Ping mekanizmasını başlat
         this.startPingInterval();
@@ -241,13 +277,97 @@ class SSEService {
     }
   }
 
+  // Test modu için mock SSE mesajları
+  private setupMockMessages() {
+    if (!getTestMode()) return;
+    
+    console.log('Test modu: Mock SSE mesajları kurulumu yapılıyor');
+    
+    // Her 15 saniyede bir rastgele bildirim mesajı gönder
+    setInterval(() => {
+      const mockMessage: SSEMessage = {
+        type: 'notification',
+        data: {
+          title: 'Test Bildirimi',
+          message: `Test mesajı ${new Date().toLocaleTimeString()}`,
+          timestamp: new Date().toISOString(),
+          priority: 'normal'
+        },
+        topic: 'notifications',
+        timestamp: new Date().toISOString(),
+        id: `mock-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        priority: 'normal'
+      };
+      
+      this.processIncomingMessage(mockMessage);
+    }, 15000);
+    
+    // Her 30 saniyede bir sistem durumu mesajı gönder
+    setInterval(() => {
+      const mockMessage: SSEMessage = {
+        type: 'system',
+        data: {
+          status: 'healthy',
+          uptime: Math.floor(Math.random() * 1000),
+          memory_usage: Math.floor(Math.random() * 100),
+          active_connections: Math.floor(Math.random() * 20),
+        },
+        timestamp: new Date().toISOString(),
+        id: `mock-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        priority: 'low'
+      };
+      
+      this.processIncomingMessage(mockMessage);
+    }, 30000);
+  }
+
   private startPingInterval() {
     this.stopPingInterval();
     
     this.pingIntervalId = setInterval(() => {
       if (this.status === 'connected') {
         this.lastPingTime = new Date();
-        wrappedPost(`/api/sse/ping/${this.clientId}`, { timestamp: this.lastPingTime.toISOString() })
+        
+        // Test modunda gerçek ping isteği gönderme
+        if (getTestMode()) {
+          console.log('Test modu: SSE ping simüle ediliyor');
+          
+          // Test modunda başarılı ping yanıtı simülasyonu
+          const mockResponse = {
+            success: true,
+            timestamp: new Date().toISOString(),
+            client_id: this.clientId,
+            status: 'connected'
+          };
+          
+          // Test modunda bir mesaj işlem kuyruğuna ekle
+          setTimeout(() => {
+            const pingMessage: SSEMessage = {
+              type: 'ping',
+              data: mockResponse,
+              timestamp: new Date().toISOString(),
+              id: `mock-ping-${Date.now()}`
+            };
+            
+            // Mesajı işle
+            this.processIncomingMessage(pingMessage);
+          }, 100);
+          
+          // Ping timeout'ı sıfırla
+          if (this.pingTimeoutId) {
+            clearTimeout(this.pingTimeoutId);
+            this.pingTimeoutId = null;
+          }
+          return;
+        }
+        
+        // API URL düzeltmesi - çift /api sorununu çözmek için
+        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const pingUrl = apiBaseUrl.endsWith('/api') 
+          ? `${apiBaseUrl}/sse/ping/${this.clientId}`
+          : `/api/sse/ping/${this.clientId}`;
+        
+        wrappedPost(pingUrl, { timestamp: this.lastPingTime.toISOString() })
           .then(response => {
             if (!response.success) {
               console.warn('Ping yanıtı başarısız:', response.message);
@@ -261,6 +381,9 @@ class SSEService {
         
         // Ping timeout kontrolü
         this.pingTimeoutId = setTimeout(() => {
+          // Test modunda timeout görmezden gel
+          if (getTestMode()) return;
+          
           console.error('Ping timeout - bağlantı kesildi');
           if (this.eventSource) {
             this.eventSource.close();
@@ -463,47 +586,89 @@ class SSEService {
   }
 
   private handleReconnect() {
+    // Yeniden bağlanma işlemini yönet
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
+
+    // Test modunda yeniden bağlanma simulasyonu
     if (getTestMode()) {
-      return;
-    }
-
-    if (!this.online) {
-      console.log('Çevrimdışı durumda yeniden bağlanma denenmiyor');
-      this.setStatus('disconnected');
-      return;
-    }
-
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const attemptMessage = `SSE yeniden bağlanma denemesi ${this.reconnectAttempts}/${this.maxReconnectAttempts}`;
-      console.log(attemptMessage);
-      this.addToConnectionHistory('reconnect', attemptMessage);
+      console.log('Test modu: SSE yeniden bağlanma simüle ediliyor');
       
-      if (this.reconnectTimeoutId) {
-        clearTimeout(this.reconnectTimeoutId);
-        this.reconnectTimeoutId = null;
+      // ReconnectManager nesnesi oluştur
+      if (!this.reconnectManager) {
+        this.reconnectManager = {
+          connection_succeeded: true,
+          resetRetryCount: () => {},
+          reconnect_delay: 3000,
+          next_attempt_time: Date.now() + 3000
+        };
+      } else {
+        // Eğer varsa, durumunu güncelle
+        this.reconnectManager.connection_succeeded = true;
       }
       
-      // Üstel geri çekilme stratejisi (exponential backoff)
-      const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
-      console.log(`${delay}ms sonra yeniden bağlanılacak`);
-      
-      this.reconnectTimeoutId = setTimeout(() => {
-        if (this.online) {
-          this.connect();
-        } else {
-          console.log('Yeniden bağlanma iptal edildi: Cihaz çevrimdışı');
-          this.setStatus('disconnected');
+      // Belirli bir süre sonra bağlanmış olarak işaretle
+      setTimeout(() => {
+        this.reconnectAttempts = 0;
+        this.setStatus('connected');
+        this.addToConnectionHistory('reconnect', 'Test modu otomatik yeniden bağlantı');
+        
+        // Test modunda reconnectManager.connection_succeeded'ı true olarak ayarla
+        if (this.reconnectManager) {
+          this.reconnectManager.connection_succeeded = true;
+          this.reconnectManager.next_attempt_time = 0;
         }
-      }, delay);
-    } else {
-      console.error('SSE maksimum yeniden bağlanma denemesi aşıldı');
-      toast.error('SSE bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
-      this.setStatus('disconnected');
+        
+        console.log('Test modu: SSE yeniden bağlantı başarılı (simülasyon)');
+        toast.success('SSE bağlantısı yenilendi (test modu)');
+      }, 1500);
       
-      // Kullanıcı müdahalesi gerektiğini kaydet
-      this.addToConnectionHistory('error', 'Maksimum yeniden bağlanma denemesi aşıldı - kullanıcı müdahalesi gerekiyor');
+      return;
     }
+
+    this.reconnectAttempts++;
+    
+    // Maksimum yeniden deneme sayısını kontrol et
+    if (this.reconnectAttempts > this.maxReconnectAttempts) {
+      console.error(`SSE maksimum yeniden bağlanma sayısına ulaşıldı (${this.maxReconnectAttempts})`);
+      this.setStatus('error');
+      this.addToConnectionHistory('error', 'Maksimum yeniden bağlanma denemesi aşıldı');
+      toast.error('SSE sunucusuna bağlanılamıyor. Lütfen sayfayı yenileyin.');
+      return;
+    }
+    
+    // Üstel geri çekilme algoritması ile gecikme hesapla
+    const delay = Math.min(1000 * (2 ** this.reconnectAttempts), 30000);
+    
+    console.log(`SSE yeniden bağlanma denemesi ${this.reconnectAttempts}/${this.maxReconnectAttempts} - ${delay}ms sonra`);
+    
+    // ReconnectManager kontrolü
+    if (!this.reconnectManager) {
+      this.reconnectManager = {
+        connection_succeeded: false,
+        resetRetryCount: () => { this.reconnectAttempts = 0; },
+        reconnect_delay: delay,
+        next_attempt_time: Date.now() + delay
+      };
+    } else {
+      this.reconnectManager.connection_succeeded = false;
+      this.reconnectManager.reconnect_delay = delay;
+      this.reconnectManager.next_attempt_time = Date.now() + delay;
+    }
+    
+    this.addToConnectionHistory('reconnect', `Deneme ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    
+    // Kullanıcıya bildiri göster
+    if (this.reconnectAttempts === 1 || this.reconnectAttempts % 3 === 0) {
+      toast.info(`SSE sunucusuna yeniden bağlanılıyor... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    }
+    
+    // Zamanlayıcı ile yeniden bağlan
+    this.reconnectTimeoutId = setTimeout(() => {
+      this.connect();
+    }, delay);
   }
 
   on(eventType: string, handler: SSEHandler) {

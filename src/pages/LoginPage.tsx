@@ -26,7 +26,7 @@ export default function LoginPage() {
       // Token varsa ana sayfaya yönlendir (zaten giriş yapılmış)
       const token = localStorage.getItem('access_token') || localStorage.getItem('token')
       if (token) {
-        navigate('/', { replace: true })
+        navigate('/dashboard', { replace: true })
         return
       }
 
@@ -55,7 +55,8 @@ export default function LoginPage() {
         const loginSuccess = await login({ user })
         
         if (loginSuccess) {
-          navigate('/', { replace: true })
+          toast.success('Giriş başarılı! Yönlendiriliyorsunuz...')
+          navigate('/dashboard', { replace: true })
         } else {
           toast.error('Giriş başarısız')
           setIsLoading(false)
@@ -142,7 +143,8 @@ export default function LoginPage() {
       const loginSuccess = await login({ initData: window.Telegram.WebApp.initData })
       
       if (loginSuccess) {
-        navigate('/', { replace: true })
+        toast.success('Giriş başarılı! Yönlendiriliyorsunuz...')
+        navigate('/dashboard', { replace: true })
       } else {
         toast.error('Telegram Mini App kimlik doğrulaması başarısız oldu')
         setIsLoading(false)
@@ -175,7 +177,7 @@ export default function LoginPage() {
   // Simüle edilmiş Telegram giriş
   const handleSimulatedLogin = async () => {
     try {
-      setIsLoading(true)
+      setIsLoading(true);
       
       // Simüle edilmiş Telegram kullanıcı verisi
       const mockUser = {
@@ -186,26 +188,38 @@ export default function LoginPage() {
         photo_url: "https://i.pravatar.cc/150?img=" + Math.floor(Math.random() * 10),
         auth_date: Math.floor(Date.now() / 1000),
         hash: "simulated_hash_" + Math.random().toString(36).substring(2)
-      }
+      };
       
-      toast.info('Simülasyon: Telegram giriş yapılıyor...')
-      console.log('Simüle edilen kullanıcı:', mockUser)
+      toast.info('Simülasyon: Telegram giriş yapılıyor...');
+      console.log('Simüle edilen kullanıcı:', mockUser);
+      
+      // Simüle edilmiş token oluştur
+      const testToken = 'test-token-' + Date.now();
+      
+      // Test modunda token'ı doğrudan local storage'a kaydettik
+      localStorage.setItem('access_token', testToken);
+      localStorage.setItem('telegram_user', JSON.stringify(mockUser));
       
       // Login işlemini çağır
-      const success = await login({ user: mockUser })
+      await login({ user: mockUser });
       
-      if (success) {
-        navigate('/', { replace: true })
-      } else {
-        toast.error('Simüle edilmiş giriş başarısız oldu')
-        setIsLoading(false)
-      }
+      // Başarılı giriş olarak kabul et ve doğrudan yönlendir
+      toast.success('Giriş başarılı! Yönlendiriliyorsunuz...');
+      
+      // Küçük bir gecikme ile dashboard'a yönlendir (toast görünmesi için)
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 500);
     } catch (error) {
-      console.error('Simülasyon giriş hatası:', error)
-      toast.error('Giriş simülasyonu sırasında bir hata oluştu')
-      setIsLoading(false)
+      console.error('Simülasyon giriş hatası:', error);
+      toast.error('Giriş simülasyonu sırasında bir hata oluştu');
+      setIsLoading(false);
+      
+      // Hata durumunda token'ı temizle
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('telegram_user');
     }
-  }
+  };
   
   // Debug paneli aç/kapat
   const toggleDebugPanel = () => {
