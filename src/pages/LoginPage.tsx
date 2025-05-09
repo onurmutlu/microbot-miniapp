@@ -86,44 +86,35 @@ export default function LoginPage() {
   
   // Telegram Widget'ını yükle
   const loadTelegramWidget = () => {
-    if (isScriptLoaded) return
-
     try {
+      // Mevcut script etiketlerini kontrol et
+      const existingScripts = document.querySelectorAll('script[id="telegram-login"]')
+      if (existingScripts.length > 0) {
+        existingScripts.forEach(script => script.remove())
+      }
+
+      // Mevcut login container'ı temizle
+      const existingContainer = document.getElementById('telegram-login-container')
+      if (existingContainer) {
+        existingContainer.innerHTML = ''
+      }
+
       const script = document.createElement('script')
-      script.src = 'https://telegram.org/js/telegram-widget.js?22'
-      script.async = true
-      script.setAttribute('data-telegram-login', import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'MicroBotMiniApp_bot')
+      script.id = 'telegram-login'
+      script.src = 'https://telegram.org/js/telegram-widget.js?21'
+      script.setAttribute('data-telegram-login', 'MicroBotTR_BOT') // Bot adınızı buraya ekleyin
       script.setAttribute('data-size', 'large')
-      script.setAttribute('data-userpic', 'true')
-      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
-      script.setAttribute('data-request-access', 'write')
       script.setAttribute('data-radius', '8')
-      
-      script.onload = () => {
-        setIsScriptLoaded(true)
-        console.log('Telegram widget yüklendi')
-      }
-      
-      script.onerror = (error) => {
-        console.error('Telegram widget yüklenirken hata:', error)
-        setIsScriptLoaded(false)
-        setUseSimulation(true)
-        toast.error('Telegram giriş butonu yüklenemedi. Simülasyon modu etkinleştirildi.')
-      }
-      
-      const container = document.getElementById('telegram-login-container')
-      if (container) {
-        // Önceki widget'ları temizle
-        while (container.firstChild) {
-          container.removeChild(container.firstChild)
-        }
-        container.appendChild(script)
-      } else {
-        console.error('telegram-login-container elementi bulunamadı')
-      }
-    } catch (error) {
-      console.error('Telegram widget eklenirken hata:', error)
-      setUseSimulation(true)
+      script.setAttribute('data-request-access', 'write')
+      script.setAttribute('data-userpic', 'false')
+      script.setAttribute('data-auth-url', 'https://microbot-api.siyahkare.com/api/auth/telegram/callback')
+      script.setAttribute('data-onauth', 'onTelegramAuth(user)')
+      script.async = true
+
+      // Script ekle
+      existingContainer?.appendChild(script)
+    } catch (e) {
+      console.error('Telegram login widget yüklenirken hata:', e)
     }
   }
   

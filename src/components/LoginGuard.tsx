@@ -44,44 +44,61 @@ export default function LoginGuard({ children }: { children: JSX.Element }) {
       
       // Normal mod - token kontrolü yap
       const token = localStorage.getItem('access_token')
-      if (token) {
-        setIsAuthenticated(true)
-        
-        // Giriş yapıldığında login sayfasından başka sayfaya yönlendir
-        if (location.pathname === '/login') {
-          const redirectPath = location.state?.from?.pathname || '/dashboard'
-          navigate(redirectPath)
-        }
-      } else {
-        setIsAuthenticated(false)
-        
-        // Giriş yapılmadığında login sayfasına yönlendir (sonsuz döngüyü engelle)
-        if (location.pathname !== '/login') {
-          navigate('/login', { state: { from: location } })
-        }
+      const telegramUser = localStorage.getItem('telegram_user')
+      
+      const isAuth = !!token && !!telegramUser
+      
+      setIsAuthenticated(isAuth)
+      setIsCheckingAuth(false)
+      
+      // Kimlik doğrulanmamışsa ve login sayfasında değilse login'e yönlendir
+      if (!isAuth && location.pathname !== '/login') {
+        // Asenkron çalıştır ki render hatası olmasın
+        setTimeout(() => {
+          navigate('/login', { replace: true })
+        }, 0)
       }
       
-      setIsCheckingAuth(false)
+      // Kimlik doğrulanmışsa ve login sayfasındaysa dashboard'a yönlendir
+      if (isAuth && location.pathname === '/login') {
+        // Asenkron çalıştır ki render hatası olmasın
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true })
+        }, 0)
+      }
     }
-
+    
     checkAuth()
     
-    // URL değiştiğinde tekrar kontrol et
-    return () => {
-      setIsCheckingAuth(true)
+    // Token değişikliklerini dinle
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'access_token' || e.key === 'telegram_user') {
+        checkAuth()
+      }
     }
-  }, [navigate, location])
-
-  // Kimlik doğrulama kontrolü yapılırken loading göster
+    
+    window.addEventListener('storage', handleStorageChange)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [navigate, location.pathname])
+  
+  // Oturum kontrolü hala devam ediyorsa bekleme ekranını göster
   if (isCheckingAuth) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Spinner size="lg" />
-        <p className="ml-2 text-gray-600">Kimlik doğrulanıyor...</p>
       </div>
     )
   }
-
-  // Oturum kontrolünden sonra bileşeni göster veya login sayfasına yönlendir
-  return isAuthenticated ? children : null
+  
+  // Login sayfasında değilse ve kimlik doğrulanmamışsa boş döndür
+  // (useEffect zaten yönlendirme yapacak)
+  if (!isAuthenticated && location.pathname !== '/login') {
+    return null
+  }
+  
+  // Diğer tüm durumlarda çocukları render et
+  return children
 } 
