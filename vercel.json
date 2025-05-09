@@ -16,7 +16,6 @@
     }
   ],
   "env": {
-    "_comment": "Bu değerleri kendi API URL, WebSocket URL ve Telegram Bot Token'ınızla değiştirin",
     "VITE_API_URL": "http://microbot-api.siyahkare.com:8000/api",
     "VITE_WS_URL": "ws://microbot-api.siyahkare.com:8000/api/ws",
     "VITE_TELEGRAM_BOT_TOKEN": "AAHXfH1fOIuOl6P_sJk5bbaE9mG8oKayNaY"
