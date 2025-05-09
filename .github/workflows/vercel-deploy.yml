@@ -1,0 +1,27 @@
+name: Vercel Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+        
+      - name: Deploy to Vercel
+        run: |
+          vercel --token ${{ secrets.VERCEL_TOKEN }} --prod --yes \
+            -b VITE_API_URL="http://microbot-api.siyahkare.com:8000/api" \
+            -b VITE_WS_URL="ws://microbot-api.siyahkare.com:8000/api/ws" \
+            -b VITE_TELEGRAM_BOT_TOKEN="AAHXfH1fOIuOl6P_sJk5bbaE9mG8oKayNaY" 
