@@ -25,8 +25,8 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "http://microbot-api.siyahkare.com:8000/api",
-    "VITE_WS_URL": "ws://microbot-api.siyahkare.com:8000/api/ws",
+    "VITE_API_URL": "https://microbot-api.siyahkare.com/api",
+    "VITE_WS_URL": "wss://microbot-api.siyahkare.com/api/ws",
     "VITE_TELEGRAM_BOT_TOKEN": "AAHXfH1fOIuOl6P_sJk5bbaE9mG8oKayNaY"
   }
 } 
