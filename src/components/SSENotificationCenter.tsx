@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { sseClient } from '../services/SSEClient';
 import { toast } from 'react-toastify';
+import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface Notification {
   id: string;
@@ -248,103 +249,103 @@ const SSENotificationCenter: React.FC<SSENotificationCenterProps> = ({
         className={`${bgColor} ${borderColor} border rounded-md p-3 mb-2 cursor-pointer hover:bg-opacity-80 transition-colors`}
         onClick={() => handleNotificationClick(notification)}
       >
-        <div className="flex justify-between items-start">
-          <div className="font-medium">{notification.title}</div>
-          <div className="flex items-center">
-            <span className="text-xs text-gray-500 mr-2">
-              {new Date(notification.timestamp).toLocaleTimeString()}
-            </span>
-            <button 
-              className="text-gray-400 hover:text-red-500"
-              onClick={(e) => {
-                e.stopPropagation(); // Tıklama olayının üst bileşene yayılmasını engelle
-                removeNotification(notification.id);
-              }}
-            >
-              ×
-            </button>
+        <div className="flex justify-between">
+          <div className="font-medium text-sm">{notification.title}</div>
+          <div className="text-xs text-gray-500">
+            {new Date(notification.timestamp).toLocaleTimeString()}
           </div>
         </div>
         <div className="text-sm mt-1">{notification.message}</div>
-        {notification.channelId && (
-          <div className="text-xs text-gray-500 mt-1">
-            Kanal: {notification.channelId}
-          </div>
-        )}
+        <div className="flex justify-between mt-2">
+          {notification.channelId && (
+            <div className="text-xs text-gray-500">
+              Kanal: {notification.channelId}
+            </div>
+          )}
+          <button 
+            className="text-xs text-gray-500 hover:text-gray-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeNotification(notification.id);
+            }}
+          >
+            Kaldır
+          </button>
+        </div>
       </div>
     );
   };
   
   return (
-    <div className="relative">
-      {/* Bildirim butonu */}
-      <button 
-        className="relative p-2 rounded-full bg-white border border-gray-200 hover:bg-gray-100"
+    <div>
+      {/* Bildirim ikonu */}
+      <button
+        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-        </svg>
+        <BellIcon className="w-5 h-5" />
         {renderBadge()}
       </button>
-      
+
       {/* Bildirim paneli */}
       {isOpen && (
-        <div className="fixed right-0 mt-2 w-80 bg-white border border-gray-200 rounded-md shadow-lg z-[100]" style={{top: '60px', marginRight: '10px'}}>
-          <div className="p-3 border-b border-gray-200 flex justify-between items-center">
-            <div className="font-medium">Bildirimler</div>
-            <div className="flex space-x-2">
-              {showControls && (
-                <>
-                  <button 
-                    className="text-xs text-blue-500 hover:text-blue-700"
-                    onClick={markAllAsRead}
-                  >
-                    Hepsini Okundu İşaretle
-                  </button>
-                  <button 
-                    className="text-xs text-red-500 hover:text-red-700"
-                    onClick={clearNotifications}
-                  >
-                    Temizle
-                  </button>
-                </>
-              )}
+        <div className="notification-panel fixed right-2 top-14 sm:right-4 sm:top-16 sm:absolute sm:right-0 sm:top-full sm:mt-2 w-full max-w-sm bg-white dark:bg-gray-800 rounded-lg shadow-xl py-2 px-2 z-[var(--z-dropdown)] border border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="font-medium text-gray-800 dark:text-white">
+              Bildirimler 
+              {unreadCount > 0 && <span className="ml-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-1.5 py-0.5 rounded-full">{unreadCount} yeni</span>}
             </div>
+            {showControls && (
+              <div className="flex space-x-2">
+                <button 
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  onClick={() => markAllAsRead()}
+                >
+                  Tümünü Okundu İşaretle
+                </button>
+                <button 
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  onClick={() => clearNotifications()}
+                >
+                  Temizle
+                </button>
+                <button 
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              </div>
+            )}
           </div>
           
-          <div className="p-3 max-h-96 overflow-y-auto">
+          <div className="mt-2 max-h-60 overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="text-center text-gray-500 py-4">
-                Henüz bildirim yok
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                Bildirim bulunmuyor
               </div>
             ) : (
               notifications.map(renderNotification)
             )}
           </div>
           
-          <div className="p-2 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-xs text-gray-500">
-              {connectionState === 'connected' ? (
-                <span className="flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                  Bağlı
-                </span>
-              ) : connectionState === 'error' ? (
-                <span className="flex items-center">
-                  <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
-                  Bağlantı Hatası
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
-                  Bağlı Değil
-                </span>
-              )}
-            </div>
-            <div className="text-xs text-gray-500">
-              {unreadCount === 0 ? 'Tüm bildirimler okundu' : `${unreadCount} okunmamış bildirim`}
-            </div>
+          {/* Bağlantı durumu */}
+          <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center">
+            <div 
+              className={`w-2 h-2 rounded-full mr-2 ${
+                connectionState === 'connected' 
+                  ? 'bg-green-500' 
+                  : connectionState === 'error' 
+                    ? 'bg-red-500' 
+                    : 'bg-yellow-500'
+              }`}
+            ></div>
+            {connectionState === 'connected' 
+              ? 'SSE Bağlantısı aktif' 
+              : connectionState === 'error' 
+                ? 'SSE Bağlantı hatası' 
+                : 'SSE Bağlantısı kuruluyor...'
+            }
           </div>
         </div>
       )}

@@ -8,6 +8,12 @@
   --tg-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --tg-safe-area-left: env(safe-area-inset-left, 0px);
   --tg-safe-area-right: env(safe-area-inset-right, 0px);
+  --z-toast: 10000;
+  --z-modal: 9500; 
+  --z-dropdown: 9000;
+  --z-header: 40;
+  --z-content: 10;
+  --z-base: 0;
 }
 
 .tg-height-fix {
@@ -124,7 +130,7 @@ body.is-telegram-miniapp {
 .is-telegram-miniapp .app-header {
   position: sticky !important;
   top: 0;
-  z-index: 40;
+  z-index: var(--z-header) !important;
   width: 100% !important;
 }
 
@@ -132,7 +138,7 @@ body.is-telegram-miniapp {
 .is-telegram-miniapp .dropdown-menu,
 .is-telegram-miniapp .modal,
 .is-telegram-miniapp .dropdown-panel {
-  z-index: 9999 !important;
+  z-index: var(--z-dropdown) !important;
 }
 
 /* MiniApp içinde sidebar gizleme */
@@ -181,4 +187,75 @@ body.is-telegram-miniapp {
   .is-telegram-miniapp .content-section {
     padding: 12px;
   }
+}
+
+/* Toast bildirimlerin düzgün görüntülenmesi için */
+.Toastify__toast-container {
+  z-index: var(--z-toast) !important;
+  width: auto !important;
+  padding: 0 !important;
+  max-width: 320px;
+}
+
+.Toastify__toast {
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+/* Telegram MiniApp içindeyken toast bildirim ekranı kapsamasın */
+.is-telegram-miniapp .Toastify__toast-container {
+  max-width: 280px !important;
+  width: auto !important;
+}
+
+.is-telegram-miniapp .Toastify__toast {
+  margin-bottom: 6px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+/* Dropdown menu için z-index düzeltmesi */
+.dropdown-menu,
+.user-menu-container > div,
+.notification-dropdown,
+[data-popper-placement],
+.notification-center-dropdown,
+.header .dropdown {
+  z-index: var(--z-dropdown) !important;
+  position: absolute !important;
+}
+
+/* SSE Bildirim Merkezi için düzeltme */
+.notification-center-wrapper .notification-panel {
+  position: absolute !important;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  z-index: var(--z-dropdown) !important;
+}
+
+/* Dropdown menüler için düzeltmeler */
+.is-telegram-miniapp .dropdown-menu,
+.is-telegram-miniapp .user-menu-container > div,
+.is-telegram-miniapp [data-popper-placement],
+.is-telegram-miniapp .notification-dropdown,
+.is-telegram-miniapp .notification-center-dropdown {
+  position: fixed !important;
+  z-index: var(--z-dropdown) !important;
+}
+
+/* Header pozisyon ve z-index */
+.is-telegram-miniapp header,
+.is-telegram-miniapp .app-header {
+  position: sticky !important;
+  top: 0;
+  z-index: var(--z-header) !important;
+  width: 100% !important;
+}
+
+/* Modal ve Dialog için z-index */
+.modal,
+.dialog,
+.popup {
+  z-index: var(--z-modal) !important;
 } 

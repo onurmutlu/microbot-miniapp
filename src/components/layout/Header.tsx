@@ -149,7 +149,7 @@ const Header: React.FC = () => {
 
         <div className="flex items-center space-x-4">
           {/* Bildirim Merkezi - z-index ve pozisyonu düzeltilmiş */}
-          <div className="notification-center-wrapper relative">
+          <div className="notification-center-wrapper relative z-[var(--z-dropdown)]">
             <SSENotificationCenter 
               channelIds={activeGroups} 
               maxNotifications={100}
@@ -202,7 +202,7 @@ const Header: React.FC = () => {
             </button>
             
             {/* Kullanıcı menüsü */}
-            <div className="relative user-menu-container">
+            <div className="relative user-menu-container z-[var(--z-dropdown)]">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -217,7 +217,7 @@ const Header: React.FC = () => {
               </button>
               
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-50 border border-gray-200 dark:border-gray-700">
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-[var(--z-dropdown)] border border-gray-200 dark:border-gray-700">
                   <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                     <div className="font-medium text-sm text-gray-800 dark:text-white">{user?.first_name} {user?.last_name}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">@{user?.username}</div>

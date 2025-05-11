@@ -1,4 +1,5 @@
 import { toast, ToastOptions, toast as toastInstance, Id } from 'react-toastify';
+import { isMiniApp } from './env';
 
 // Aktif tüm toast ID'lerini takip etmek için
 let activeToasts: Id[] = [];
@@ -29,18 +30,36 @@ const forceCloseAllToasts = () => {
   }, 100);
 };
 
+// MiniApp için otomatik kapanma süreleri kısa tutulsun
+const getAutoCloseTime = () => {
+  // MiniApp içinde daha kısa süre
+  if (isMiniApp()) {
+    return 1800; // 1.8 saniye
+  }
+  
+  // Normal web tarayıcısında normal süre
+  return 2500; // 2.5 saniye
+};
+
 // Varsayılan toast seçenekleri
 const defaultOptions: ToastOptions = {
-  position: "top-right",
-  autoClose: 3000, // 3 saniyeye çıkarıldı
-  hideProgressBar: false,
+  position: isMiniApp() ? "bottom-center" : "top-right", // MiniApp içinde alt orta
+  autoClose: getAutoCloseTime(),
+  hideProgressBar: isMiniApp(), // MiniApp içinde progress bar gizli
   closeOnClick: true,
   pauseOnHover: false,
   pauseOnFocusLoss: false,
   draggable: true,
   theme: "colored",
   closeButton: true,
-  onClick: () => forceCloseAllToasts()
+  onClick: () => forceCloseAllToasts(),
+  className: isMiniApp() ? "miniapp-toast" : "",
+  style: isMiniApp() ? { 
+    fontSize: '13px', 
+    padding: '8px 12px',
+    maxWidth: '280px',
+    marginBottom: '6px'
+  } : {}
 };
 
 // Toast yardımcı fonksiyonları
@@ -59,6 +78,15 @@ export const showSuccess = (message: string, options: ToastOptions = {}) => {
 };
 
 export const showError = (message: string, options: ToastOptions = {}) => {
+  // Offline mod veya MiniApp içinde WebSocket hata mesajlarını gösterme
+  if (message.includes('WebSocket') && 
+    (localStorage.getItem('offline_mode') === 'true' || 
+     localStorage.getItem('is_miniapp_session') === 'true' || 
+     isMiniApp())) {
+    console.log('[Toast] WebSocket hatası gösterilmedi (offline mod/MiniApp):', message);
+    return '';
+  }
+  
   forceCloseAllToasts(); // Önceki bildirimleri temizle
   const id = toast.error(message, { ...defaultOptions, ...options });
   activeToasts.push(id);
