@@ -3,13 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
     <title>MicroBot Mini App - v1.6.0</title>
     <meta name="description" content="MicroBot Dashboard ve Mini App arayüzü" />
     <meta name="theme-color" content="#3f51b5" />
     
     <!-- Telegram Mini App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- iOS için viewport yükseklik düzeltmesi -->
+    <script>
+      // iOS için viewport yükseklik düzeltmesi
+      function setViewportHeight() {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+      }
+      
+      // Sayfa yüklendiğinde ve yeniden boyutlandırıldığında çalıştır
+      window.addEventListener('DOMContentLoaded', setViewportHeight);
+      window.addEventListener('resize', setViewportHeight);
+      
+      // iOS Safari için scroll bounce durumunda da çalıştır
+      window.addEventListener('scroll', setViewportHeight);
+    </script>
     
     <!-- Test Modu -->
     <script>

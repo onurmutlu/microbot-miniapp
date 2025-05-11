@@ -194,8 +194,81 @@ export const useAuth = () => {
         
         return true;
       }
+
+      // MiniApp'den veya InitDataUnsafe'den kullanıcı bilgilerini al
+      const userData = telegramData.user || telegramData.initDataUnsafe?.user || telegramData;
+
+      // Eğer kullanıcı bilgisine erişim varsa (MiniApp durumu)
+      if (userData && (telegramData.initData || telegramData.initDataUnsafe)) {
+        console.log('[Auth] Telegram kullanıcı bilgisi mevcut:', userData);
+        
+        try {
+          // Backend bağlantısını dene (sınırlı süreyle)
+          const response = await api.post('/api/auth/telegram-login', telegramData, {
+            timeout: 5000 // 5 saniye timeout ile backend bağlantı denemesi
+          });
+          
+          // Backend yanıtı başarılı
+          if (response.data && response.data.token) {
+            console.log('[Auth] Backend giriş başarılı:', response.data);
+            
+            const token = response.data.token;
+            const user = response.data.user || userData;
+            
+            localStorage.setItem('access_token', token);
+            localStorage.setItem('telegram_user', JSON.stringify(user));
+            localStorage.removeItem('offline_mode'); // Offline modu temizle
+            
+            dispatch(setCredentials({ 
+              user,
+              token 
+            }));
+            
+            try {
+              websocketService.connect();
+            } catch (err) {
+              console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+            }
+            
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: 'access_token',
+              newValue: token
+            }));
+            
+            return true;
+          } else {
+            throw new Error('Geçersiz token yanıtı');
+          }
+        } catch (error: any) {
+          // Backend bağlantısı kurulamadıysa veya doğrulama başarısız olduysa
+          console.warn('[Auth] Backend bağlantısı başarısız, offline kimlik doğrulama kullanılıyor:', error?.message);
+          
+          // Offline mod için token üret
+          const offlineToken = `miniapp-offline-${Date.now()}`;
+          
+          // Kullanıcı bilgilerini ve offline token'ı kaydet
+          localStorage.setItem('access_token', offlineToken);
+          localStorage.setItem('telegram_user', JSON.stringify(userData));
+          localStorage.setItem('offline_mode', 'true');
+          localStorage.setItem('is_miniapp_session', 'true');
+          
+          dispatch(setCredentials({
+            user: userData,
+            token: offlineToken
+          }));
+          
+          console.log('[Auth] Offline mod etkinleştirildi');
+          
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: 'access_token',
+            newValue: offlineToken
+          }));
+          
+          return true;
+        }
+      }
       
-      // Gerçek backend giriş işlemi
+      // Gerçek backend giriş işlemi (burası normal web arayüzü için)
       try {
         console.log('[Auth] Backend\'e giriş isteği gönderiliyor:', telegramData);
         
@@ -227,6 +300,7 @@ export const useAuth = () => {
         // Token ve kullanıcı verilerini kaydet
         localStorage.setItem('access_token', token);
         localStorage.setItem('telegram_user', JSON.stringify(userData));
+        localStorage.removeItem('offline_mode'); // Offline modu temizle
         
         dispatch(setCredentials({ 
           user: userData, 

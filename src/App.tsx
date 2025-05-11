@@ -345,6 +345,17 @@ const App: React.FC = () => {
       
       // Telegram WebApp başlat
       initTelegramApp();
+
+      console.log('[App] Telegram MiniApp ortamı algılandı');
+      console.log('[App] WebApp verileri:', {
+        platform: window.Telegram.WebApp.platform || 'bilinmiyor',
+        version: window.Telegram.WebApp.version || 'bilinmiyor',
+        colorScheme: window.Telegram.WebApp.colorScheme || 'bilinmiyor',
+        viewportHeight: window.Telegram.WebApp.viewportHeight,
+        viewportStableHeight: window.Telegram.WebApp.viewportStableHeight,
+        dataLength: window.Telegram.WebApp.initData?.length || 0,
+        user: window.Telegram.WebApp.initDataUnsafe?.user || null
+      });
       
       // Hazır olduğunu bildir
       window.Telegram.WebApp.ready();
@@ -359,12 +370,33 @@ const App: React.FC = () => {
       if (telegramUser && initData) {
         console.log('[App] Telegram kullanıcı verileri bulundu, otomatik giriş deneniyor...');
         
-        // LocalStorage'e Telegram verilerini kaydet (isteğe bağlı)
+        // LocalStorage'e Telegram verilerini kaydet
         localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+        localStorage.setItem('is_miniapp_session', 'true');
         
-        // Sayfa yüklendiğinde login API'si çağrılacak, bu yüzden burada bir şey yapmıyoruz
-        // LoginGuard bileşeni, isMiniApp() kontrolü yaparak otomatik oturum açacak
+        // Sayfa yüklendiğinde login işlemi LoginGuard tarafından yapılacak
+        console.log('[App] Kullanıcı bilgileri saklandı, LoginGuard tarafından işlenecek');
+      } else if (telegramUser) {
+        console.warn('[App] Telegram kullanıcısı var fakat initData eksik');
+        
+        // Sadece kullanıcı bilgisine erişim varsa yine de kaydet
+        localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+        localStorage.setItem('is_miniapp_session', 'true');
+        localStorage.setItem('init_data_missing', 'true');
+      } else {
+        console.error('[App] Telegram kullanıcı verileri eksik!');
       }
+
+      // iOS Safe Area ayarlaması
+      const setIOSSafeArea = () => {
+        setTimeout(() => {
+          const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tg-viewport-stable-height'), 10) || 0;
+          document.body.style.setProperty('--safe-area-inset-top', `${safeAreaTop}px`);
+        }, 500);
+      };
+      
+      setIOSSafeArea();
+      window.addEventListener('resize', setIOSSafeArea);
     }
     
     // Tema tercihini kontrol et

@@ -72,4 +72,113 @@ body.is-telegram-miniapp {
     padding-top: calc(env(safe-area-inset-top) + 1rem);
     padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
   }
+}
+
+/**
+ * Telegram MiniApp için özel stil ayarları
+ */
+
+/* MiniApp sınıfı ile sayfanın tamamı için genel ayarlar */
+.is-telegram-miniapp {
+  /* Kenar boşluklarını kaldır */
+  margin: 0;
+  padding: 0;
+  
+  /* Body'nin tüm yüksekliği kaplaması için */
+  height: 100%;
+  max-height: 100%;
+  
+  /* iOS ve Android'de daha iyi görünüm */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  /* iOS safe-area için destek */
+  padding-top: var(--safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* MiniApp içinde max-width ayarı ve ortalama */
+.is-telegram-miniapp #root {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* MiniApp içinde ana içerik konteyneri için ayarlar */
+.is-telegram-miniapp .md\:ml-64 {
+  margin-left: 0 !important;
+}
+
+/* MiniApp içinde sayfa yüksekliği ayarı */
+.is-telegram-miniapp .tg-height-fix {
+  height: calc(100vh - 60px); /* Alt bar için alan bırak */
+  min-height: calc(100vh - 60px);
+  height: calc(var(--vh, 1vh) * 100 - 60px);
+  min-height: calc(var(--vh, 1vh) * 100 - 60px);
+}
+
+/* MiniApp içinde header pozisyonu */
+.is-telegram-miniapp .app-header {
+  position: sticky !important;
+  top: 0;
+  z-index: 40;
+  width: 100% !important;
+}
+
+/* MiniApp içinde modaller ve dropdown menüler için yüksek z-index */
+.is-telegram-miniapp .dropdown-menu,
+.is-telegram-miniapp .modal,
+.is-telegram-miniapp .dropdown-panel {
+  z-index: 9999 !important;
+}
+
+/* MiniApp içinde sidebar gizleme */
+.is-telegram-miniapp .sidebar {
+  display: none !important;
+}
+
+/* MiniApp içinde tam genişlikte içerik */
+.is-telegram-miniapp .content-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* iPhone X ve sonrası için notch desteği */
+@supports (padding: max(0px)) {
+  .is-telegram-miniapp {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+}
+
+/* MiniApp içinde alt navigasyon için özel ayarlar */
+.is-telegram-miniapp .mobile-navigation {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: rgba(var(--bg-color-rgb, 28, 28, 30), 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Responsive görünüm ayarları */
+@media (max-width: 768px) {
+  .is-telegram-miniapp .card,
+  .is-telegram-miniapp .panel {
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  
+  .is-telegram-miniapp .content-section {
+    padding: 12px;
+  }
 } 

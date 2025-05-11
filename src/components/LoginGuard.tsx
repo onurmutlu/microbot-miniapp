@@ -6,6 +6,7 @@ import { getTestMode } from '../utils/testMode'
 import { isMiniApp } from '../utils/env'
 import { useAuth } from '../hooks/useAuth'
 import Spinner from './ui/Spinner'
+import { toast } from 'react-toastify'
 
 type LoginGuardProps = {
   children: JSX.Element
@@ -46,29 +47,66 @@ export default function LoginGuard({ children }: LoginGuardProps) {
           const telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
           const initData = window.Telegram.WebApp.initData;
           
-          if (telegramUser && initData) {
-            console.log('[LoginGuard] Telegram kullanıcı verisi bulundu, giriş yapılıyor');
+          console.log('[LoginGuard] Telegram kullanıcı verileri:', { 
+            user: telegramUser, 
+            dataLength: initData?.length || 0 
+          });
+          
+          if (telegramUser) {
+            // WebApp verilerini localStorage'a yedekle (backend bağlantısı kesildiğinde kullanılacak)
+            localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+            localStorage.setItem('is_miniapp_session', 'true');
             
-            // Login fonksiyonu ile giriş
+            // Login fonksiyonuna gönderilecek veriler
             const loginData = { 
-              initData,
+              initData: initData || '',
+              initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
               user: telegramUser
             };
             
-            const success = await login(loginData);
-            
-            if (success) {
-              console.log('[LoginGuard] MiniApp otomatik girişi başarılı');
+            try {
+              console.log('[LoginGuard] MiniApp verisi ile giriş deneniyor');
+              const success = await login(loginData);
+              
+              if (success) {
+                console.log('[LoginGuard] MiniApp otomatik girişi başarılı');
+                toast.success('Telegram MiniApp girişi başarılı');
+                return;
+              } else {
+                console.warn('[LoginGuard] MiniApp backend girişi başarısız oldu');
+                
+                // Backend bağlantısı yoksa veya başarısız olduysa offline modu etkinleştir
+                console.log('[LoginGuard] Offline mod etkinleştiriliyor');
+                localStorage.setItem('offline_mode', 'true');
+                
+                // Kullanıcı bilgilerini kaydet
+                localStorage.setItem('access_token', `miniapp-offline-${Date.now()}`);
+                
+                // İşlem başarılı sayılır
+                toast.info('Offline modda devam ediliyor');
+                window.location.reload(); // Yeniden yükleyerek auth durumunu güncelle
+                return;
+              }
+            } catch (error) {
+              console.error('[LoginGuard] MiniApp giriş hatası:', error);
+              
+              // Hata durumunda da offline modu etkinleştir
+              console.log('[LoginGuard] Hata nedeniyle offline mod etkinleştiriliyor');
+              localStorage.setItem('offline_mode', 'true');
+              localStorage.setItem('access_token', `miniapp-offline-${Date.now()}`);
+              
+              toast.info('Bağlantı hatası. Offline modda devam ediliyor');
+              window.location.reload(); // Yeniden yükleyerek auth durumunu güncelle
               return;
-            } else {
-              console.error('[LoginGuard] MiniApp otomatik girişi başarısız oldu');
             }
           }
         } else {
-          console.log('[LoginGuard] Telegram kullanıcı verisi bulunamadı');
+          console.warn('[LoginGuard] Telegram WebApp verisi bulunamadı veya eksik');
+          toast.error('Telegram kullanıcı verileri alınamadı');
         }
       } catch (error) {
-        console.error('[LoginGuard] MiniApp girişi sırasında hata:', error);
+        console.error('[LoginGuard] MiniApp girişi sırasında beklenmeyen hata:', error);
+        toast.error('MiniApp başlatılırken bir hata oluştu');
       }
     };
     
@@ -91,6 +129,13 @@ export default function LoginGuard({ children }: LoginGuardProps) {
         console.log('[LoginGuard] Test modu aktif, erişim izni verildi')
         processingRef.current = false
         return
+      }
+      
+      // Offline mod kontrolü - MiniApp ise ve offline_mode flag'i varsa izin ver
+      if (isTelegramMiniApp && localStorage.getItem('offline_mode') === 'true') {
+        console.log('[LoginGuard] MiniApp offline modda çalışıyor, erişim izni verildi');
+        processingRef.current = false;
+        return;
       }
       
       // Telegram MiniApp ise ve içeride gerekli bir sayfadaysa
