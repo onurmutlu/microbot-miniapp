@@ -290,7 +290,7 @@ const SSENotificationCenter: React.FC<SSENotificationCenterProps> = ({
       
       {/* Bildirim paneli */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+        <div className="fixed right-0 mt-2 w-80 bg-white border border-gray-200 rounded-md shadow-lg z-[100]" style={{top: '60px', marginRight: '10px'}}>
           <div className="p-3 border-b border-gray-200 flex justify-between items-center">
             <div className="font-medium">Bildirimler</div>
             <div className="flex space-x-2">

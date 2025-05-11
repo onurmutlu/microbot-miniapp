@@ -1,11 +1,10 @@
-import React, { useEffect, Suspense, useState } from 'react';
+import React, { useEffect, Suspense, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Provider } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastContainer } from 'react-toastify';
-import { store } from './store';
+import { ToastContainer, toast } from 'react-toastify';
+import { store, RootState } from './store';
 import { useAuth } from './hooks/useAuth';
-import { runConnectionTests } from './utils/connectionTest';
 import { checkEnv, isMiniApp } from './utils/env';
 import { setTestMode, getTestMode } from './utils/testMode';
 import Sidebar from './components/layout/Sidebar';
@@ -24,120 +23,146 @@ import SystemStatus from './pages/SystemStatus';
 import SessionPage from './pages/SessionPage';
 import SessionListPage from './pages/SessionListPage';
 import NewSessionPage from './pages/NewSessionPage';
+import ContentOptimizationPage from './pages/ContentOptimizationPage';
+import GroupAnalysisPage from './pages/GroupAnalysisPage';
 import TestModeIndicator from './components/debug/TestModeIndicator';
 import Spinner from './components/ui/Spinner';
-import JoinGroupForm from './components/JoinGroupForm';
-import GroupsList from './components/GroupsList';
 import { SessionProvider } from './context/SessionContext';
 import 'react-toastify/dist/ReactToastify.css';
 import './styles/glass.css';
 import './styles/neon-effects.css';
-import HomePage from './pages/HomePage';
-import WebSocketTest from './pages/WebSocketTest';
+import './styles/telegramMobile.css';
 import { ActiveSessionProvider } from './hooks/useActiveSession';
-import { useWebSocket } from './hooks/useWebSocket.ts';
 import { WebSocketProvider, useWebSocketContext } from './contexts/WebSocketContext';
-import { clearAllToasts } from './utils/toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
-import api from './utils/api';
 import { UserProvider } from './context/UserContext';
-import { useUser } from './context/UserContext';
 import LoginGuard from './components/LoginGuard';
 import SSEDemo from './pages/SSEDemo';
 import SSEClientDemo from './pages/SSEClientDemo';
-import TelegramSetup from './pages/TelegramSetup';
-import CyberpunkUIDemo from './pages/CyberpunkUIDemo';
-import CyberpunkDashboardDemo from './pages/CyberpunkDashboardDemo';
-import NeonButtonDemo from './pages/NeonButtonDemo';
-import CorporatePanelDemo from './pages/CorporatePanelDemo';
-import CorporateButtonDemo from './pages/CorporateButtonDemo';
-import CorporateMobileHeaderDemo from './pages/CorporateMobileHeaderDemo';
-import CorporateGlassCardDemo from './pages/CorporateGlassCardDemo';
-import ThemeSwitcherDemo from './pages/ThemeSwitcherDemo';
-import AnimationDemo from './pages/AnimationDemo';
-import UIStyleGuide from './pages/UIStyleGuide';
 import PageTransition from './components/ui/PageTransition';
 import ThemeSwitcher from './components/ThemeSwitcher';
 import './styles/themes.css';
 import { initTelegramApp } from './utils/telegramSDK';
-import MiniAppLayout from './components/ui/MiniAppLayout';
-import MiniAppHeader from './components/ui/MiniAppHeader';
-import MiniAppCard from './components/ui/MiniAppCard';
-import MiniAppButton from './components/ui/MiniAppButton';
-import MiniAppBottomNav from './components/ui/MiniAppBottomNav';
-import MiniAppSkeleton from './components/ui/MiniAppSkeleton';
-import { useTelegramWebApp } from './hooks/useTelegramWebApp';
 import MiniAppDemo from './components/MiniAppDemo';
 import ErrorReports from './pages/ErrorReports';
 import WebSocketManager from './pages/WebSocketManager';
+import { websocketService } from './services/websocket';
+import { apiService } from './services/api';
 
-const queryClient = new QueryClient();
+// QueryClient - React Query için
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 300000 // 5 dakika
+    }
+  }
+});
 
-const dummyUser = {
-  id: 'dummy',
-  username: 'testuser',
-  email: 'test@microbot.local',
-  first_name: 'Test',
-  last_name: 'User',
-  photo_url: 'https://i.pravatar.cc/150?img=3'
-};
+// API hata interceptor'u
+apiService.setupInterceptors(
+  (error) => {
+    // Network hatası
+    if (!error.response) {
+      console.error('API ağ hatası:', error);
+      return Promise.reject(error);
+    }
+    
+    // Auth hataları
+    if (error.response.status === 401) {
+      // Token süresi dolmuş olabilir, oturumu kapat
+      if (error.config && error.config.url !== '/auth/login' && error.config.url !== '/auth/telegram') {
+        console.warn('Kimlik doğrulama hatası, oturum kapatılıyor');
+        
+        // LocalStorage temizleme
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('telegram_user');
+        
+        // Sayfa yenileme ile oturumu kapat
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+        
+        toast.error('Oturumunuz sona erdi, yeniden giriş yapmalısınız', {
+          autoClose: 3000
+        });
+      }
+    }
+    
+    // Diğer hataları ilet
+    return Promise.reject(error);
+  }
+);
 
-// Geliştirme ortamında ise test modu ayarlarını yapılandır
+// Geliştirme ortamında test modu ayarı
 if (import.meta.env.DEV) {
-  // Test modu ayarını kontrol et, sadece null ise varsayılan değer ayarla
+  // Test modu ayarını kontrol et
   const testModeStorage = localStorage.getItem('test_mode');
   if (testModeStorage === null) {
-    // Sadece ilk kullanımda ayarla, varsayılan olarak açık
+    // İlk kullanımda varsayılan olarak açık
     setTestMode(true);
   }
   
-  // Tarayıcı konsolundan erişim için global fonksiyon
+  // Tarayıcı konsolundan erişim için
   if (typeof window !== 'undefined') {
-    // toggleTestMode.ts'den import edilen fonksiyonu kullan
     import('./utils/toggleTestMode').then(module => {
       (window as any).toggleTestMode = module.default;
     });
   }
 }
 
+// Ana uygulama rotaları
 const AppRoutes: React.FC = () => {
+  const dispatch = useDispatch();
   const { isConnected } = useWebSocketContext();
-  const [hasToken, setHasToken] = useState<boolean>(false);
-  const [checkingAuth, setCheckingAuth] = useState<boolean>(true); // Kimlik doğrulama kontrolü yapılıyor mu?
+  const { isAuthenticated, isLoading, initializeAuth } = useAuth();
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>('online');
   
-  // Token kontrolünü useEffect içinde yap
+  // Backend bağlantı durumunu izle
   useEffect(() => {
-    const checkTokenAndAuth = () => {
-      // Test modunda ise otomatik token oluşturma
-      if (getTestMode() && !localStorage.getItem('access_token')) {
-        localStorage.setItem('access_token', 'test-token');
-        setHasToken(true);
-        setCheckingAuth(false);
-        return;
+    const checkConnection = async () => {
+      try {
+        // Basit bir endpoint'e istek at
+        await apiService.get('/ping', { timeout: 3000 });
+        setNetworkStatus('online');
+      } catch (error) {
+        setNetworkStatus('offline');
       }
-      
-      const token = localStorage.getItem('access_token');
-      setHasToken(!!token);
-      setCheckingAuth(false);
     };
     
-    checkTokenAndAuth();
+    // Periyodik kontrol
+    checkConnection();
+    const interval = setInterval(checkConnection, 30000); // 30 saniyede bir
     
-    // Storage değişikliklerini dinle
-    const handleStorageChange = () => {
-      checkTokenAndAuth();
-    };
+    // Online/offline durumu izle
+    const handleOnline = () => setNetworkStatus('online');
+    const handleOffline = () => setNetworkStatus('offline');
     
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
   
-  // Kimlik doğrulama kontrolü yapılırken yükleme ekranı göster
-  if (checkingAuth) {
-    return <Spinner isLoading={true} size="xl" variant="glassEffect" />;
+  // Kimlik doğrulama durumunu başlat
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+  
+  // Yükleniyor ekranı
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner isLoading={true} size="xl" variant="glassEffect" />
+      </div>
+    );
   }
   
   return (
@@ -146,34 +171,44 @@ const AppRoutes: React.FC = () => {
       <div className="md:ml-64 transition-all duration-300 relative">
         <Header />
         <main className="p-4 md:p-6 pb-20 md:pb-6 tg-height-fix">
+          {/* Bağlantı durum göstergesi */}
           <div className="mb-4 flex items-center gap-2">
-            <div
-              className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
-            />
+            <div className={`relative w-3 h-3 rounded-full ${
+              isConnected && networkStatus === 'online' 
+                ? 'bg-green-500' 
+                : 'bg-red-500'
+            }`}>
+              {!isConnected && <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>}
+            </div>
             <span className="text-sm text-gray-600 dark:text-gray-300">
-              {isConnected ? 'Bağlı' : 'Bağlantı Kesik'}
+              {isConnected && networkStatus === 'online' 
+                ? 'Sunucu bağlantısı: Aktif' 
+                : 'Sunucu bağlantısı: Kopuk'
+              }
             </span>
+            
+            {networkStatus === 'offline' && (
+              <span className="text-xs text-red-400 ml-2">
+                (Çevrimdışı modu aktif)
+              </span>
+            )}
           </div>
 
+          {/* Ana içerik */}
           <Suspense fallback={<Spinner isLoading={true} size="xl" variant="glassEffect" />}>
             <ErrorBoundary>
               <PageTransition>
                 <Routes>
                   {/* Ana rotalar */}
-                  <Route path="/" element={
-                    hasToken 
-                      ? <Navigate to="/dashboard" replace /> 
-                      : <Navigate to="/login" replace />
-                  } />
+                  <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
                   
-                  <Route path="/login" element={
-                    hasToken 
-                      ? <Navigate to="/dashboard" replace /> 
-                      : <LoginPage />
-                  } />
+                  {/* Login sayfası koruma olmadan */}
+                  <Route path="/login" element={<LoginPage />} />
                   
+                  {/* Korumalı sayfalar */}
                   <Route path="/dashboard" element={
                     <LoginGuard>
                       <Dashboard />
@@ -246,7 +281,7 @@ const AppRoutes: React.FC = () => {
                       <SystemStatus />
                     </LoginGuard>
                   } />
-                  <Route path="system/errors" element={
+                  <Route path="/system/errors" element={
                     <LoginGuard>
                       <ErrorReports />
                     </LoginGuard>
@@ -256,19 +291,102 @@ const AppRoutes: React.FC = () => {
                       <WebSocketManager />
                     </LoginGuard>
                   } />
+                  
+                  {/* AI ve Analiz Sayfaları */}
+                  <Route path="/ai/content-optimization" element={
+                    <LoginGuard>
+                      <ContentOptimizationPage />
+                    </LoginGuard>
+                  } />
+                  <Route path="/ai/group-analysis" element={
+                    <LoginGuard>
+                      <GroupAnalysisPage />
+                    </LoginGuard>
+                  } />
+                  
+                  {/* Bulunamayan sayfalar */}
+                  <Route path="*" element={
+                    <div className="text-center p-10">
+                      <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-200 mb-4">
+                        Sayfa Bulunamadı
+                      </h2>
+                      <p className="text-gray-600 dark:text-gray-300 mb-6">
+                        Aradığınız sayfa mevcut değil veya taşınmış olabilir.
+                      </p>
+                      <button 
+                        onClick={() => window.history.back()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                      >
+                        Geri Dön
+                      </button>
+                    </div>
+                  } />
                 </Routes>
               </PageTransition>
             </ErrorBoundary>
           </Suspense>
         </main>
       </div>
+      <MobileNavigation />
       <ThemeSwitcher />
       {getTestMode() && <TestModeIndicator />}
     </div>
   );
 };
 
+// Ana uygulama komponenti
 const App: React.FC = () => {
+  // İlk yüklenmede sayfa ayarları
+  useEffect(() => {
+    // Telegram Mini App ise
+    if (isMiniApp() && window.Telegram?.WebApp) {
+      // Body'e MiniApp class'ını ekle (CSS için)
+      document.body.classList.add('is-telegram-miniapp');
+      
+      // Telegram WebApp başlat
+      initTelegramApp();
+      
+      // Hazır olduğunu bildir
+      window.Telegram.WebApp.ready();
+      
+      // Tam ekran yap
+      window.Telegram.WebApp.expand();
+      
+      // Telegram'den gelen verileri kullanarak otomatik giriş yap
+      const telegramUser = window.Telegram.WebApp.initDataUnsafe?.user;
+      const initData = window.Telegram.WebApp.initData;
+      
+      if (telegramUser && initData) {
+        console.log('[App] Telegram kullanıcı verileri bulundu, otomatik giriş deneniyor...');
+        
+        // LocalStorage'e Telegram verilerini kaydet (isteğe bağlı)
+        localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+        
+        // Sayfa yüklendiğinde login API'si çağrılacak, bu yüzden burada bir şey yapmıyoruz
+        // LoginGuard bileşeni, isMiniApp() kontrolü yaparak otomatik oturum açacak
+      }
+    }
+    
+    // Tema tercihini kontrol et
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+    
+    // Viewport yüksekliğini ayarla (iOS için)
+    const setViewportHeight = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+    
+    setViewportHeight();
+    window.addEventListener('resize', setViewportHeight);
+    
+    return () => {
+      window.removeEventListener('resize', setViewportHeight);
+    };
+  }, []);
+
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
@@ -281,10 +399,19 @@ const App: React.FC = () => {
                     {/* Telegram MiniApp Demo Sayfası */}
                     <Route path="/miniapp" element={<MiniAppDemo />} />
                     
-                    {/* Diğer sayfalar */}
+                    {/* Diğer tüm sayfalar */}
                     <Route path="/*" element={<AppRoutes />} />
                   </Routes>
-                  <ToastContainer position="bottom-right" theme="dark" />
+                  
+                  {/* Toast mesajları */}
+                  <ToastContainer 
+                    position="bottom-right" 
+                    theme="dark"
+                    autoClose={3000}
+                    newestOnTop
+                    closeOnClick
+                    pauseOnHover
+                  />
                 </Router>
               </WebSocketProvider>
             </ActiveSessionProvider>

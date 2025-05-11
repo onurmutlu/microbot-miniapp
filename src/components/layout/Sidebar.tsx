@@ -22,7 +22,9 @@ import {
   ArrowPathIcon,
   CodeBracketIcon,
   CommandLineIcon,
-  DevicePhoneMobileIcon
+  DevicePhoneMobileIcon,
+  SparklesIcon,
+  BeakerIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -45,7 +47,9 @@ import {
   ArrowPathIcon as ArrowPathSolidIcon,
   CodeBracketIcon as CodeBracketSolidIcon,
   CommandLineIcon as CommandLineSolidIcon,
-  DevicePhoneMobileIcon as DevicePhoneMobileSolidIcon
+  DevicePhoneMobileIcon as DevicePhoneMobileSolidIcon,
+  SparklesIcon as SparklesSolidIcon,
+  BeakerIcon as BeakerSolidIcon
 } from '@heroicons/react/24/solid'
 
 import { TbTemplate, TbAutomation, TbUsers, TbMessage, TbDeviceMobile, TbCalendarTime, TbBrandTelegram, TbWaveSine } from 'react-icons/tb';
@@ -102,6 +106,21 @@ const Sidebar: React.FC = () => {
       name: 'Giriş Yap',
       icon: ShieldCheckIcon,
       activeIcon: ShieldCheckSolidIcon,
+      divider: true
+    },
+    
+    // AI ve Analiz Modülleri
+    { 
+      path: '/ai/content-optimization', 
+      name: 'İçerik Optimizasyonu', 
+      icon: SparklesIcon,
+      activeIcon: SparklesSolidIcon
+    },
+    { 
+      path: '/ai/group-analysis', 
+      name: 'Grup Analizi', 
+      icon: BeakerIcon,
+      activeIcon: BeakerSolidIcon,
       divider: true
     },
     
@@ -339,7 +358,7 @@ const Sidebar: React.FC = () => {
           {/* Sürüm bilgisi */}
           <div className="p-4 border-t border-gray-200/30 dark:border-gray-700/30 glass-gradient-secondary">
             <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-              MicroBot v1.5.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0] animate-pulse">Beta</span>
+              MicroBot v1.6.0 <span className="text-[#3f51b5] dark:text-[#5c6bc0] animate-pulse">Beta</span>
             </p>
           </div>
         </div>

@@ -196,4 +196,100 @@ export const mockReconnectStats: ReconnectStats = {
     'client_101jkl': 2,
     'client_other': 15
   }
+};
+
+// AI API'si için mock veriler
+export const mockGroupInsights = {
+  status: 'success',
+  content_analysis: {
+    avg_message_length: 142,
+    media_rate: 0.32,
+    interaction_rate: 0.65,
+    top_keywords: ['kripto', 'bitcoin', 'ethereum', 'yatırım', 'token']
+  },
+  recommendations: [
+    { 
+      type: 'content', 
+      message: 'Mesajlara görsel eklemek etkileşimi %30 artırabilir'
+    },
+    { 
+      type: 'timing', 
+      message: 'Mesajları 18:00-20:00 arası göndermek daha yüksek görüntülenme sağlayabilir'
+    },
+    {
+      type: 'engagement',
+      message: 'Sorular sormak grup etkileşimini artıracaktır'
+    }
+  ]
+};
+
+export const mockMessageOptimization = {
+  original_message: 'Merhaba, bugün Bitcoin fiyatı yükseldi.',
+  optimized_message: 'Merhaba topluluğumuz! 📈 Bugün Bitcoin\'in fiyatında önemli bir yükseliş gördük. Sizce bu trend devam eder mi? Yorumlarınızı bekliyorum! #bitcoin #kripto',
+  confidence_score: 0.92,
+  recommendations: [
+    { type: 'length', message: 'Mesaj uzunluğu hedef kitle için ideal boyuta getirildi' },
+    { type: 'language', message: 'Dil daha açık ve anlaşılır hale getirildi' },
+    { type: 'engagement', message: 'Etkileşimi artırmak için soru eklenmiştir' }
+  ],
+  performance_predictions: {
+    engagement_rate: 0.78,
+    visibility_score: 0.82,
+    quality_rating: 'Çok İyi'
+  }
+};
+
+// Sistem API'si için mock veriler
+export const mockSystemHealth = {
+  status: 'healthy',
+  uptime: 843600, // saniye cinsinden (9.75 gün)
+  version: '1.6.0',
+  services: {
+    database: {
+      status: 'connected',
+      latency: 12 // ms
+    },
+    cache: {
+      status: 'connected',
+      latency: 2 // ms
+    },
+    messaging: {
+      status: 'connected',
+      latency: 28 // ms
+    },
+    ai: {
+      status: 'connected',
+      latency: 180 // ms
+    }
+  },
+  messages_processed: {
+    today: 12450,
+    total: 5872340
+  }
+};
+
+export const mockCacheStats = {
+  hit_rate: 0.89,
+  miss_rate: 0.11,
+  memory_usage: 256, // MB
+  keys_count: 42890,
+  evictions: 128,
+  average_ttl: 3600, // saniye
+  top_keys: [
+    {
+      key: 'user:session:active',
+      size: 24.5, // KB
+      hits: 58920
+    },
+    {
+      key: 'group:stats:daily',
+      size: 186.3, // KB
+      hits: 42180
+    },
+    {
+      key: 'message:templates',
+      size: 312.7, // KB
+      hits: 38640
+    }
+  ]
 }; 

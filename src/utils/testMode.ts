@@ -1,30 +1,22 @@
 // Test modu için yardımcı fonksiyonlar
 
 /**
- * Test modunu etkinleştir veya devre dışı bırak
- * @param enabled Test modunun etkin olup olmaması
+ * Test modunu localStorage'da saklar.
  */
-export const setTestMode = (enabled: boolean): void => {
-  try {
-    // Tek bir noktada localStorage kaydı yapıyoruz, tekrarlı kayıt yapmıyoruz
-    localStorage.setItem('testMode', enabled.toString());
-    console.log(`Test modu ${enabled ? 'etkinleştirildi' : 'devre dışı bırakıldı'}`);
-    
-    // Test modu göstergesini güncelle
-    updateTestModeIndicator();
-  } catch (error) {
-    console.error('Test modu ayarlanırken hata:', error);
-  }
+export const getTestMode = (): boolean => {
+  const storedValue = localStorage.getItem('test_mode');
+  return storedValue === 'true';
 };
 
 /**
- * Test modunun etkin olup olmadığını kontrol et
- * @returns Test modu etkin mi?
+ * Test modunu ayarlar.
+ * @param value Test modunun yeni değeri.
  */
-export const getTestMode = (): boolean => {
-  // Test modunu varsayılan olarak açık yap
-  const savedMode = localStorage.getItem('testMode');
-  return savedMode === null ? true : savedMode === 'true';
+export const setTestMode = (value: boolean): void => {
+  localStorage.setItem('test_mode', value.toString());
+  
+  // Test modu değiştiğinde bir olay tetikle
+  window.dispatchEvent(new CustomEvent('testModeChanged', { detail: { enabled: value } }));
 };
 
 /**

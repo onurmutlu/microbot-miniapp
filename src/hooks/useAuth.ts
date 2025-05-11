@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { setCredentials, setLoading, setError } from '../store/slices/authSlice';
+import { setCredentials, setLoading, setError, clearError } from '../store/slices/authSlice';
 import api from '../config/api';
 import { websocketService } from '../services/websocket';
 import { getTestMode } from '../utils/testMode';
@@ -9,172 +9,350 @@ import { toast } from 'react-toastify';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
-  const { user, token, isAuthenticated, isLoading } = useSelector(
+  const { user, token, isAuthenticated, isLoading, error } = useSelector(
     (state: RootState) => state.auth
   );
-  const [isInitialized, setIsInitialized] = useState(false);
+  const isAuthInitialized = useRef(false);
+  const isLoginInProgress = useRef(false);
 
+  // Giriş hatası varsa temizle
   useEffect(() => {
-    if (isInitialized) return;
+    if (error) {
+      const timer = setTimeout(() => {
+        dispatch(clearError());
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [error, dispatch]);
 
-    const initAuth = async () => {
-      try {
-        dispatch(setLoading(true));
-        
-        // Test modunda ise otomatik doğrulanmış olarak işaretle
-        if (getTestMode()) {
-          console.log('Test modu aktif, otomatik giriş yapılıyor');
-          const testUser = {
-            id: 'test-user',
-            username: 'testuser',
-            email: 'test@example.com',
-            first_name: 'Test',
-            last_name: 'User',
-            photo_url: 'https://i.pravatar.cc/150?img=3'
-          };
-          dispatch(setCredentials({ user: testUser, token: 'test-token' }));
-          setIsInitialized(true);
-          return;
-        }
-
-        // Yerel depolamada token kontrolü
-        const token = localStorage.getItem('token') || localStorage.getItem('access_token');
-        
-        if (token) {
-          try {
-            // "/auth/me" endpoint'i mevcut değilse, hata yakalanacak ve işlem devam edecek
-            const response = await api.get('/auth/me');
-            dispatch(setCredentials({ user: response.data, token }));
-            websocketService.connect();
-          } catch (error) {
-            // API hatası durumunda, token'ı doğrudan kullanalım
-            console.error('Kullanıcı bilgileri alınamadı, token ile devam ediliyor:', error);
-            
-            // Test amaçlı bir kullanıcı oluşturalım
-            dispatch(setCredentials({ 
-              user: { id: 'token-user', username: 'Token Kullanıcısı' }, 
-              token 
-            }));
-          }
-        }
-      } catch (error) {
-        console.error('Kimlik doğrulama hatası:', error);
-        dispatch(setError('Kimlik doğrulama hatası'));
-        localStorage.removeItem('token');
-        localStorage.removeItem('access_token');
-      } finally {
-        dispatch(setLoading(false));
-        setIsInitialized(true);
-      }
-    };
-
-    initAuth();
-  }, [dispatch, isInitialized]);
-
-  const login = async (telegramData: any) => {
+  // Auth State'i başlat
+  const initializeAuth = useCallback(async () => {
+    if (isAuthInitialized.current) return;
+    isAuthInitialized.current = true;
+    
     try {
       dispatch(setLoading(true));
       
-      // Test modunda ise giriş yap
+      // Test modunda otomatik token oluştur
       if (getTestMode()) {
-        console.log('Test modu aktif, otomatik giriş yapılıyor', telegramData);
+        console.log('[Auth] Test modu aktif, otomatik giriş yapılıyor');
         
-        const testUser = telegramData.user || {
-          id: 'test-user',
-          username: 'testuser',
-          email: 'test@example.com',
+        const testUser = {
+          id: 'test-user-' + Date.now(),
+          username: 'test_user',
           first_name: 'Test',
           last_name: 'User',
           photo_url: 'https://i.pravatar.cc/150?img=3'
         };
-        const testToken = telegramData.token || 'test-token';
         
-        // Kullanıcı bilgilerini depola
-        localStorage.setItem('token', testToken);
+        const testToken = 'test-token-' + Date.now();
+        
+        // LocalStorage'e kaydet
         localStorage.setItem('access_token', testToken);
         localStorage.setItem('telegram_user', JSON.stringify(testUser));
         
-        dispatch(setCredentials({ user: testUser, token: testToken }));
-        websocketService.connect();
+        // Redux store'a dispatch et
+        dispatch(setCredentials({ 
+          user: testUser, 
+          token: testToken 
+        }));
+        
+        // WebSocket bağlantısını kur
+        try {
+          websocketService.connect();
+        } catch (err) {
+          console.warn('[Auth] WebSocket bağlantısı kurulamadı (test modu):', err);
+        }
+        
+        return;
+      }
+      
+      // Token kontrolü
+      const existingToken = localStorage.getItem('access_token');
+      if (!existingToken) {
+        // Token yok, authenticated değil
+        console.log('[Auth] Token bulunamadı, giriş yapılmadı');
+        dispatch(setLoading(false));
+        return;
+      }
+      
+      // Token doğrulaması ve kullanıcı bilgilerini alma
+      try {
+        const userDataStr = localStorage.getItem('telegram_user');
+        let userData = null;
+        
+        if (userDataStr) {
+          try {
+            userData = JSON.parse(userDataStr);
+          } catch (e) {
+            console.error('[Auth] LocalStorage user verisi parse edilemedi', e);
+          }
+        }
+        
+        // Backend'den kullanıcı bilgilerini al
+        try {
+          const response = await api.get('/api/auth/me', {
+            headers: {
+              Authorization: `Bearer ${existingToken}`
+            },
+            timeout: 3000 // 3 saniye timeout ile backend'e bağlanma dene
+          });
+          
+          // Backend'den kullanıcı bilgileri başarıyla alındı
+          console.log('[Auth] Kullanıcı bilgileri backend\'den alındı:', response.data);
+          
+          dispatch(setCredentials({
+            user: response.data,
+            token: existingToken
+          }));
+        } catch (apiError) {
+          console.warn('[Auth] Backend\'den kullanıcı bilgileri alınamadı:', apiError);
+          
+          // Backend bağlantısı yoksa veya hata varsa localStorage'deki verilerle devam et
+          if (userData) {
+            console.log('[Auth] LocalStorage\'daki kullanıcı bilgileriyle devam ediliyor');
+            
+            dispatch(setCredentials({ 
+              user: userData,
+              token: existingToken
+            }));
+          } else {
+            // Token var ama kullanıcı bilgileri yok, çıkış yap
+            console.warn('[Auth] Token bulundu fakat kullanıcı bilgileri yok, çıkış yapılıyor');
+            logout();
+            return;
+          }
+        }
+        
+        // WebSocket bağlantısını kur
+        try {
+          websocketService.connect();
+        } catch (err) {
+          console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+        }
+      } catch (error) {
+        console.error('[Auth] Kimlik doğrulama sırasında hata:', error);
+        logout();
+      }
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+  
+  // Uygulama başladığında auth state'i başlat
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+  
+  // Telegram ile giriş yap
+  const login = async (telegramData: any): Promise<boolean> => {
+    // Eğer giriş işlemi zaten devam ediyorsa engelle
+    if (isLoginInProgress.current) {
+      console.log('[Auth] Login işlemi zaten devam ediyor, yeni istek engellendi');
+      return false;
+    }
+    
+    isLoginInProgress.current = true;
+    dispatch(setLoading(true));
+    
+    try {
+      // Telegram doğrulama verilerini kontrol et
+      if (!telegramData) {
+        console.error('[Auth] Giriş verileri eksik:', telegramData);
+        toast.error('Giriş bilgileri eksik veya hatalı');
+        return false;
+      }
+      
+      // Test modunda doğrudan giriş yap
+      if (getTestMode()) {
+        const testUser = telegramData.user || telegramData || {
+          id: 'test-user-' + Date.now(),
+          username: 'test_user',
+          first_name: 'Test',
+          last_name: 'User',
+          photo_url: 'https://i.pravatar.cc/150?img=3'
+        };
+        
+        const testToken = 'test-token-' + Date.now();
+        
+        localStorage.setItem('access_token', testToken);
+        localStorage.setItem('telegram_user', JSON.stringify(testUser));
+        
+        dispatch(setCredentials({
+          user: testUser,
+          token: testToken
+        }));
+        
+        toast.success('Test modunda giriş başarılı (Simüle edildi)');
+        
+        // Çerezleri senkronize etmek için storage eventi tetikle
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'access_token',
+          newValue: testToken
+        }));
         
         return true;
       }
       
-      console.log('Telegram login bilgisi gönderiliyor:', telegramData);
-      
+      // Gerçek backend giriş işlemi
       try {
-        // Telegram ile kimlik doğrulama
-        const response = await api.post('/auth/telegram', telegramData);
-        const { user, token } = response.data;
+        console.log('[Auth] Backend\'e giriş isteği gönderiliyor:', telegramData);
         
-        console.log('Login başarılı:', { user, token });
+        // Telegram Auth verilerini backend'e gönder - Direct object gönder
+        const response = await api.post('/api/auth/telegram-login', telegramData, {
+          timeout: 8000 // 8 saniye timeout
+        });
         
-        // Token'ı kaydet
-        localStorage.setItem('token', token);
-        localStorage.setItem('access_token', token);
-        
-        // Telegram kullanıcı verisini kaydet
-        if (telegramData.user) {
-          localStorage.setItem('telegram_user', JSON.stringify(telegramData.user));
+        if (!response.data) {
+          console.error('[Auth] Backend yanıtı geçersiz - yanıt alınamadı');
+          toast.error('Sunucu yanıtı geçersiz');
+          return false;
         }
         
-        dispatch(setCredentials({ user, token }));
+        // Yanıt içindeki token ve user'ı al
+        const { token, user } = response.data;
+        
+        if (!token) {
+          console.error('[Auth] Backend yanıtında token yok:', response.data);
+          toast.error('Kimlik doğrulama token\'ı alınamadı');
+          return false;
+        }
+        
+        // Kullanıcı verisi yoksa sunucudan dönen yanıta bak veya telegramData'dan al
+        const userData = user || telegramData;
+        
+        console.log('[Auth] Giriş başarılı:', { user: userData, token });
+        
+        // Token ve kullanıcı verilerini kaydet
+        localStorage.setItem('access_token', token);
+        localStorage.setItem('telegram_user', JSON.stringify(userData));
+        
+        dispatch(setCredentials({ 
+          user: userData, 
+          token: token 
+        }));
+        
+        try {
         websocketService.connect();
+        } catch (err) {
+          console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+        }
+        
+        // Çerezleri senkronize etmek için storage eventi tetikle
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'access_token',
+          newValue: token
+        }));
         
         return true;
       } catch (error: any) {
-        console.error('Login API hatası:', error);
+        console.error('[Auth] Backend giriş hatası:', error);
         
-        // API gerçekte çalışmıyorsa, simüle edilmiş bir yanıt kullan
-        console.log('Mock login kullanılıyor...');
+        // Error detaylarını göster
+        const errorMsg = error.response?.data?.detail || 
+                        error.response?.data?.message || 
+                        'Giriş yapılırken bir hata oluştu';
+                        
+        dispatch(setError(errorMsg));
         
-        // localhost için test amaçlı bir kullanıcı oluştur
-        const mockUser = telegramData.user || {
+        // Hata alertini göster
+        toast.error(errorMsg);
+        
+        // İstek başarısızsa, fallback giriş
+        if (getTestMode() || import.meta.env.DEV) {
+          console.log('[Auth] Geliştirme ortamında mock giriş kullanılıyor');
+        
+        const mockUser = telegramData.user || telegramData || {
           id: Date.now().toString(),
           username: 'mock_user',
           first_name: 'Mock',
           last_name: 'User',
           photo_url: 'https://i.pravatar.cc/150?img=7'
         };
+          
         const mockToken = 'mock-token-' + Date.now();
         
-        localStorage.setItem('token', mockToken);
         localStorage.setItem('access_token', mockToken);
         localStorage.setItem('telegram_user', JSON.stringify(mockUser));
         
         dispatch(setCredentials({ user: mockUser, token: mockToken }));
         
-        toast.warning('Gerçek API bağlantısı kurulamadı. Test modu aktif.');
+          toast.warning('Backend bağlantısı kurulamadı. Geliştirme modu aktif.');
+          
+          // Çerezleri senkronize etmek için storage eventi tetikle
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: 'access_token',
+            newValue: mockToken
+          }));
+          
         return true;
+        } else {
+          // Üretim ortamında gerçek hata göster
+          return false;
+        }
       }
-    } catch (error) {
-      console.error('Giriş işlemi sırasında beklenmeyen hata:', error);
-      dispatch(setError('Giriş yapılırken hata oluştu'));
+    } catch (unexpectedError) {
+      // Beklenmeyen hatalar
+      console.error('[Auth] Beklenmeyen giriş hatası:', unexpectedError);
+      dispatch(setError('Beklenmeyen bir hata oluştu'));
+      toast.error('Giriş sırasında beklenmeyen bir hata oluştu');
       return false;
     } finally {
       dispatch(setLoading(false));
+      isLoginInProgress.current = false;
     }
   };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('telegram_user');
+  
+  // Çıkış yap
+  const logout = useCallback(() => {
+    // Redux store'u temizle
     dispatch({ type: 'auth/logout' });
     
-    toast.info('Çıkış yapıldı');
+    // LocalStorage'den verileri sil
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('telegram_user');
+    localStorage.removeItem('token'); // Eski token varsa
     
-    if (!getTestMode()) {
+    // WebSocket bağlantısını kes
+    try {
       websocketService.disconnect();
+    } catch (err) {
+      console.warn('[Auth] WebSocket bağlantısı kapatılırken hata:', err);
     }
-  };
+    
+    // Çerezleri senkronize etmek için storage eventi tetikle
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'access_token',
+      newValue: null
+    }));
+    
+    toast.info('Çıkış yapıldı');
+  }, [dispatch]);
+  
+  // Token güncelleme (refresh token işlemi için)
+  const updateToken = useCallback((newToken: string) => {
+    // Token'ı güncelle
+    localStorage.setItem('access_token', newToken);
+    
+    // Redux store'u güncelle (eğer kullanıcı verisi varsa)
+    if (user) {
+      dispatch(setCredentials({ user, token: newToken }));
+    }
+    
+    // API için token'ı güncelle
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+  }, [dispatch, user]);
 
   return {
     user,
     token,
     isAuthenticated,
     isLoading,
+    error,
     login,
     logout,
+    updateToken,
+    initializeAuth
   };
 }; 

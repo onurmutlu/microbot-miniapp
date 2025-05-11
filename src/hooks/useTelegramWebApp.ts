@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-// Telegram WebApp API tiplerini tanımlıyoruz
+// WebApp tiplerini tanımla
 interface TelegramWebApp {
   initData: string;
   initDataUnsafe: {
@@ -63,6 +63,15 @@ interface TelegramWebApp {
     notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
     selectionChanged: () => void;
   };
+}
+
+// Global Window tipini genişlet
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: any;
+    };
+  }
 }
 
 // Telegram WebApp hook'unun dönüş tipi
@@ -153,14 +162,5 @@ export const useTelegramWebApp = (): UseTelegramWebAppResult => {
     isTelegramClient
   };
 };
-
-// Global Window tipi genişletmesi
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp: TelegramWebApp;
-    };
-  }
-}
 
 export default useTelegramWebApp; 

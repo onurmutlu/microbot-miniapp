@@ -80,6 +80,18 @@ const Header: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Profil dropdown dışında tıklandığında menüyü kapat
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showDropdown && !(event.target as Element).closest('.user-menu-container')) {
+        setShowDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDropdown]);
+
   const handleThemeChange = (e: MediaQueryListEvent) => {
     const newDarkMode = e.matches;
     setDarkMode(newDarkMode);
@@ -136,19 +148,21 @@ const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Bildirim Merkezi */}
-          <SSENotificationCenter 
-            channelIds={activeGroups} 
-            maxNotifications={100}
-            showUnreadBadge={true}
-            onNotificationClick={(notification) => {
-              // Bildirim tıklama işlemlerini burada yapabilirsiniz
-              if (notification.channelId) {
-                // Grupla ilgili bir işlem yapılabilir
-                console.log(`${notification.channelId} kanalından bildirim tıklandı`);
-              }
-            }}
-          />
+          {/* Bildirim Merkezi - z-index ve pozisyonu düzeltilmiş */}
+          <div className="notification-center-wrapper relative">
+            <SSENotificationCenter 
+              channelIds={activeGroups} 
+              maxNotifications={100}
+              showUnreadBadge={true}
+              onNotificationClick={(notification) => {
+                // Bildirim tıklama işlemlerini burada yapabilirsiniz
+                if (notification.channelId) {
+                  // Grupla ilgili bir işlem yapılabilir
+                  console.log(`${notification.channelId} kanalından bildirim tıklandı`);
+                }
+              }}
+            />
+          </div>
           
           {/* Kullanıcı Alanı */}
           <div className="flex items-center space-x-3">
@@ -188,7 +202,7 @@ const Header: React.FC = () => {
             </button>
             
             {/* Kullanıcı menüsü */}
-            <div className="relative">
+            <div className="relative user-menu-container">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -203,7 +217,7 @@ const Header: React.FC = () => {
               </button>
               
               {showDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-20 border border-gray-200 dark:border-gray-700">
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl py-1 z-50 border border-gray-200 dark:border-gray-700">
                   <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                     <div className="font-medium text-sm text-gray-800 dark:text-white">{user?.first_name} {user?.last_name}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">@{user?.username}</div>
