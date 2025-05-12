@@ -14,50 +14,121 @@ declare global {
 /**
  * Telegram MiniApp olarak mı çalıştığını kontrol eder
  */
-export const isMiniApp = (): boolean => {
-  return window.location.pathname.includes('/miniapp') || 
-         !!window.Telegram?.WebApp;
-};
+export function isMiniApp(): boolean {
+  // Telegram WebApp global nesnesi var mı?
+  const webAppAvailable = typeof window !== 'undefined' && window.Telegram && !!window.Telegram.WebApp;
+  
+  // MiniApp içinde olduğumuzu anlamak için initData ve kullanıcı bilgisini kontrol et
+  if (webAppAvailable) {
+    // InitData var mı?
+    const hasInitData = !!window.Telegram?.WebApp?.initData;
+    
+    // Kullanıcı bilgisi var mı?
+    const hasUser = !!window.Telegram?.WebApp?.initDataUnsafe?.user;
+    
+    // Ek güvenlik kontrolü: initData format kontrolü
+    const validInitData = hasInitData && 
+      typeof window.Telegram?.WebApp?.initData === 'string' && 
+      window.Telegram?.WebApp?.initData?.includes('auth_date');
+    
+    return validInitData && hasUser;
+  }
+  
+  // Test modu/geliştirme ortamında olup olmadığını kontrol et
+  if (import.meta.env.DEV || import.meta.env.VITE_TEST_MODE === 'true') {
+    // Test modu ve miniapp_mode=true parametresi varsa
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('miniapp_mode') === 'true') {
+      return true;
+    }
+    
+    // localStorage'da bir test flag'i var mı?
+    if (localStorage.getItem('is_miniapp_session') === 'true') {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /**
  * API URL'ini döndürür, .env dosyasından veya varsayılan değerden
  */
-export const getApiUrl = (): string => {
-  // Test modunda API URL'i için varsayılan değer
-  const defaultApiUrl = '/api';
+export function getApiUrl(): string {
+  let apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   
-  // .env'den VITE_API_URL değerini al
-  const apiUrl = import.meta.env.VITE_API_URL || defaultApiUrl;
+  // URL'in protokol içerip içermediğini kontrol et
+  if (!apiUrl.startsWith('http')) {
+    // Eğer HTTPS sayfadaysak, HTTPS kullan
+    const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+    apiUrl = `${protocol}${apiUrl}`;
+  }
   
-  // MiniApp ise ve /api ile başlıyorsa, yerel test sunucusu kullanılıyor demektir
-  if (isMiniApp() && apiUrl === defaultApiUrl) {
-    console.warn('MiniApp modunda çalışırken VITE_API_URL tanımlanmamış. Backend ile iletişim kurulamayabilir.');
+  // HTTPS sayfada HTTP API kullanılmışsa, HTTPS'e yükselt
+  if (window.location.protocol === 'https:' && apiUrl.startsWith('http://')) {
+    apiUrl = apiUrl.replace('http://', 'https://');
+  }
+  
+  // URL'in sonunda /api olup olmadığını kontrol et
+  if (!apiUrl.endsWith('/api')) {
+    apiUrl = apiUrl.endsWith('/') ? `${apiUrl}api` : `${apiUrl}/api`;
   }
   
   return apiUrl;
-};
+}
 
 /**
  * WebSocket URL'ini döndürür
  */
-export const getWebSocketUrl = (): string => {
-  // Test modunda WebSocket URL'i için varsayılan değer
-  const defaultWsUrl = 'ws://localhost:8000/ws';
+export function getWsUrl(): string {
+  // Önce özel WS URL'ini kontrol et
+  let wsUrl = import.meta.env.VITE_WS_URL;
   
-  // .env'den VITE_WS_URL değerini al
-  return import.meta.env.VITE_WS_URL || defaultWsUrl;
-};
+  // Eğer özel WS URL'i yoksa, API URL'inden türet
+  if (!wsUrl) {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    
+    // API URL'inin protokolünü kaldır
+    const host = apiUrl.replace(/^https?:\/\//, '');
+    
+    // Protokolü belirle (HTTPS sayfada WSS kullan)
+    const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    
+    // WS URL'ini oluştur
+    wsUrl = `${protocol}${host}/ws`;
+  } else {
+    // Protokol kontrolü
+    if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+      const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+      wsUrl = `${protocol}${wsUrl}`;
+    }
+    
+    // HTTPS sayfada WS kullanılmışsa, WSS'e yükselt
+    if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+      wsUrl = wsUrl.replace('ws://', 'wss://');
+    }
+  }
+  
+  return wsUrl;
+}
 
 /**
  * SSE URL'ini döndürür
  */
-export const getSSEUrl = (): string => {
-  // Test modunda SSE URL'i için varsayılan değer
-  const defaultSseUrl = 'http://localhost:8000/sse';
+export function getSSEUrl(): string {
+  // API URL'ini al
+  const apiUrl = getApiUrl();
   
-  // .env'den VITE_SSE_URL değerini al
-  return import.meta.env.VITE_SSE_URL || defaultSseUrl;
-};
+  // SSE yolunu ekle
+  const sseUrl = apiUrl.endsWith('/') ? `${apiUrl}sse` : `${apiUrl}/sse`;
+  
+  // HTTPS kontrolü
+  if (window.location.protocol === 'https:' && sseUrl.startsWith('http://')) {
+    return sseUrl.replace('http://', 'https://');
+  }
+  
+  return sseUrl;
+}
 
 /**
  * Çevresel değişkenleri kontrol eder ve gerekirse uyarılar gösterir
@@ -82,6 +153,25 @@ export const checkEnv = (): void => {
   if (isMiniApp() && !import.meta.env.VITE_TELEGRAM_BOT_TOKEN) {
     console.warn('VITE_TELEGRAM_BOT_TOKEN çevresel değişkeni tanımlanmamış. Telegram Mini App özellikleri çalışmayabilir.');
   }
+};
+
+/**
+ * API URL'ini normalleştirir, çift /api gibi sorunları önler
+ */
+export const normalizeApiUrl = (url: string): string => {
+  // HTTP/HTTPS protokolünü temizle
+  let normalizedUrl = url.replace(/^https?:\/\//, '');
+  
+  // Sondaki /api kaldır
+  normalizedUrl = normalizedUrl.replace(/\/api$/, '');
+  
+  // Çift /api yollarını temizle
+  normalizedUrl = normalizedUrl.replace(/\/api\/api\//, '/api/');
+  
+  // Protokolü tekrar ekle (current page protokolüne göre)
+  const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+  
+  return `${protocol}${normalizedUrl}`;
 };
 
 export const getEnv = (key: string): string => {

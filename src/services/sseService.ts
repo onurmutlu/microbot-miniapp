@@ -88,7 +88,8 @@ class SSEService {
         this.connect();
       } else {
         this.status = 'disconnected';
-        toast.warning('Çevrimdışı modda çalışılıyor');
+        // Toast bildirimi devre dışı bırakıldı 
+        // toast.warning('Çevrimdışı modda çalışılıyor');
         this.loadCachedSubscriptions();
       }
     } else {
@@ -140,6 +141,42 @@ class SSEService {
     this.offlineMessagesQueue = [];
   }
 
+  // Protokol kontrolü yapan yardımcı fonksiyon
+  private getSecureSSEUrl(url: string): string {
+    // URL protokol içermiyorsa, mevcut sayfanın protokolüne göre ekleyelim
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+      url = `${protocol}${url}`;
+    }
+    
+    // Çift /api yolunu temizleyelim
+    url = url.replace(/\/api\/api\//, '/api/');
+    
+    // HTTPS sayfada http:// protokolü kullanılmışsa https:// ile değiştirelim
+    if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+      console.warn('HTTPS sayfada güvensiz SSE (http://) kullanılamaz. https:// protokolüne geçiliyor.');
+      url = url.replace('http://', 'https://');
+    }
+    
+    return url;
+  }
+  
+  // SSE yollarında potansiyel çift /api sorununu önleme
+  private normalizeSsePath(apiBaseUrl: string): string {
+    // Önce http:// veya https:// kısmını çıkar
+    let baseWithoutProtocol = apiBaseUrl.replace(/^https?:\/\//, '');
+    
+    // Eğer /api ile bitiyorsa, çıkar
+    baseWithoutProtocol = baseWithoutProtocol.replace(/\/api$/, '');
+    
+    // Base URL'i sapta
+    const baseUrl = window.location.protocol === 'https:' ? 
+      `https://${baseWithoutProtocol}` : 
+      `http://${baseWithoutProtocol}`;
+      
+    return baseUrl;
+  }
+
   connect() {
     if (getTestMode()) {
       console.log('Test modu: SSE bağlantısı simüle ediliyor');
@@ -177,23 +214,31 @@ class SSEService {
     this.connectionAttempts++;
     this.setStatus('connecting');
     try {
-      // API URL düzeltildi - 8000 portu ve çift /api sorununu çözdük
+      // API URL düzeltildi - çift api sorununu çözelim
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const sseUrl = apiBaseUrl.endsWith('/api') 
-        ? `${apiBaseUrl}/sse/${this.clientId}`
-        : `${apiBaseUrl}/api/sse/${this.clientId}`;
+      const normalizedBaseUrl = this.normalizeSsePath(apiBaseUrl);
       
-      console.log('SSE bağlantısı deneniyor:', sseUrl);
+      // SSE URL'ini oluştur
+      const sseUrl = `${normalizedBaseUrl}/api/sse/${this.clientId}`;
       
-      this.eventSource = new EventSource(sseUrl);
+      // Güvenli URL kontrolü yaparak SSE URL'ini oluşturuyoruz
+      const secureUrl = this.getSecureSSEUrl(sseUrl);
+      
+      if (this.debugMode) {
+        console.log(`SSE bağlantısı deneniyor: ${secureUrl}`);
+      }
+      
+      this.eventSource = new EventSource(secureUrl);
 
       this.eventSource.onopen = () => {
         this.reconnectAttempts = 0;
         this.connectionStartTime = new Date();
         this.setStatus('connected');
         this.addToConnectionHistory('connect');
-        console.log('SSE bağlantısı başarılı');
-        toast.success('SSE bağlantısı kuruldu');
+        if (this.debugMode) {
+          console.log('SSE bağlantısı başarılı');
+        }
+        // Toast bildirimi devre dışı bırakıldı
         
         // ReconnectManager durumunu güncelle
         if (this.reconnectManager) {
@@ -221,7 +266,7 @@ class SSEService {
           this.processIncomingMessage(message);
         } catch (error) {
           console.error('SSE mesaj işleme hatası:', error);
-          toast.error('Mesaj işlenirken hata oluştu');
+          // Toast bildirimi devre dışı bırakıldı
         }
       };
 
@@ -361,22 +406,31 @@ class SSEService {
           return;
         }
         
-        // API URL düzeltmesi - çift /api sorununu çözmek için
+        // API URL düzeltmesi
         const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const pingUrl = apiBaseUrl.endsWith('/api') 
-          ? `${apiBaseUrl}/sse/ping/${this.clientId}`
-          : `/api/sse/ping/${this.clientId}`;
+        const normalizedBaseUrl = this.normalizeSsePath(apiBaseUrl);
         
-        wrappedPost(pingUrl, { timestamp: this.lastPingTime.toISOString() })
+        // Ping endpoint yolu - "sse/ping" değil "ping" endpointi kullanıyoruz
+        // Backend'in desteklediği endpoint'i kullanmalısınız
+        const pingUrl = `${normalizedBaseUrl}/api/ping`;
+        
+        wrappedPost(pingUrl, { 
+          client_id: this.clientId,
+          timestamp: this.lastPingTime.toISOString() 
+        })
           .then(response => {
             if (!response.success) {
               console.warn('Ping yanıtı başarısız:', response.message);
-              this.handleReconnect();
+              // Opsiyonel olarak yeniden bağlanma
+              // Bazı durumlarda ping olmasa da bağlantı aktif olabilir
+              // Çok sık yeniden bağlanma olmaması için bu kısmı yorum yapabiliriz
+              // this.handleReconnect();
             }
           })
           .catch(error => {
             console.error('Ping gönderme hatası:', error);
-            this.handleReconnect();
+            // Opsiyonel olarak yeniden bağlanma
+            // this.handleReconnect();
           });
         
         // Ping timeout kontrolü
@@ -622,7 +676,8 @@ class SSEService {
         }
         
         console.log('Test modu: SSE yeniden bağlantı başarılı (simülasyon)');
-        toast.success('SSE bağlantısı yenilendi (test modu)');
+        // Toast bildirimi devre dışı bırakıldı
+        // toast.success('SSE bağlantısı yenilendi (test modu)');
       }, 1500);
       
       return;
@@ -635,7 +690,8 @@ class SSEService {
       console.error(`SSE maksimum yeniden bağlanma sayısına ulaşıldı (${this.maxReconnectAttempts})`);
       this.setStatus('error');
       this.addToConnectionHistory('error', 'Maksimum yeniden bağlanma denemesi aşıldı');
-      toast.error('SSE sunucusuna bağlanılamıyor. Lütfen sayfayı yenileyin.');
+      // Toast bildirimi devre dışı bırakıldı
+      // toast.error('SSE sunucusuna bağlanılamıyor. Lütfen sayfayı yenileyin.');
       return;
     }
     
@@ -662,7 +718,8 @@ class SSEService {
     
     // Kullanıcıya bildiri göster
     if (this.reconnectAttempts === 1 || this.reconnectAttempts % 3 === 0) {
-      toast.info(`SSE sunucusuna yeniden bağlanılıyor... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      // Toast bildirimi devre dışı bırakıldı
+      // toast.info(`SSE sunucusuna yeniden bağlanılıyor... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     }
     
     // Zamanlayıcı ile yeniden bağlan
@@ -962,68 +1019,6 @@ class SSEService {
     return wrappedPost(`/api/sse/publish-multi`, { topics, message });
   }
   
-  // Mesaj filtresi ekle
-  addMessageFilter(filterKey: string, filterFn: (message: SSEMessage) => boolean) {
-    this.messageFilters.set(filterKey, filterFn);
-    return () => this.removeMessageFilter(filterKey);
-  }
-  
-  // Mesaj filtresi kaldır
-  removeMessageFilter(filterKey: string) {
-    return this.messageFilters.delete(filterKey);
-  }
-  
-  // Arşivlenmiş mesajları al
-  getArchivedMessages(key: string = 'global'): SSEMessage[] {
-    return this.messagesArchive.get(key) || [];
-  }
-  
-  // Arşivlenmiş mesajları temizle
-  clearArchivedMessages(key?: string) {
-    if (key) {
-      this.messagesArchive.delete(key);
-    } else {
-      this.messagesArchive.clear();
-    }
-  }
-  
-  // Bağlantı geçmişini al
-  getConnectionHistory(): SSEConnectionHistoryEntry[] {
-    return [...this.connectionHistory];
-  }
-  
-  // İstatistikleri al
-  getStats(): SSEStats {
-    let uptime = 0;
-    if (this.connectionStartTime) {
-      uptime = new Date().getTime() - this.connectionStartTime.getTime();
-    }
-    
-    // Mesaj hızı hesapla (son 1 dakika)
-    const recentMessages = this.getArchivedMessages('global')
-      .filter(msg => {
-        const msgTime = new Date(msg.timestamp).getTime();
-        return (new Date().getTime() - msgTime) < 60000;
-      });
-    
-    const messageRate = recentMessages.length / 60; // mesaj/saniye
-    
-    return {
-      messagesReceived: this.messagesReceived,
-      connectionAttempts: this.connectionAttempts,
-      lastConnectedAt: this.connectionStartTime,
-      lastDisconnectedAt: this.connectionHistory.find(h => h.action === 'disconnect' || h.action === 'error')
-        ? new Date(this.connectionHistory.find(h => h.action === 'disconnect' || h.action === 'error')!.timestamp)
-        : null,
-      uptime,
-      messageRate,
-      activeTopics: Array.from(this.subscriptions),
-      online: this.online,
-      pendingMessages: this.offlineMessagesQueue.length,
-      cachedMessages: sseLocalCache.getCachedMessages().length
-    };
-  }
-  
   // Debug modu ayarla
   setDebugMode(enabled: boolean) {
     this.debugMode = enabled;
@@ -1072,63 +1067,14 @@ class SSEService {
     
     this.setStatus('disconnected');
     this.addToConnectionHistory('disconnect', 'Kullanıcı tarafından bağlantı kesildi', disconnectDuration);
-    console.log('SSE bağlantısı kapatıldı');
+    if (this.debugMode) {
+      console.log('SSE bağlantısı kapatıldı');
+    }
   }
 
   // Çevrimdışı durumu kontrolü
   isOnline(): boolean {
     return this.online;
-  }
-  
-  // Bekleyen çevrimdışı mesaj sayısı
-  getPendingMessagesCount(): number {
-    return this.offlineMessagesQueue.length;
-  }
-  
-  // Çevrimdışı mesajları temizle
-  clearOfflineMessagesQueue(): void {
-    this.offlineMessagesQueue = [];
-  }
-  
-  // Tüm yerel verileri temizle
-  clearLocalData(): void {
-    sseLocalCache.clearAllCache();
-    this.clearOfflineMessagesQueue();
-  }
-  
-  // Önbellek ayarlarını al
-  getCacheSettings() {
-    return sseLocalCache.getSettings();
-  }
-  
-  // Önbellek ayarlarını güncelle
-  updateCacheSettings(settings: any) {
-    return sseLocalCache.updateSettings(settings);
-  }
-
-  /**
-   * Tüm kaynakları temizle, uygulama kapanırken çağrılmalıdır
-   */
-  dispose() {
-    // Bağlantıyı kapat
-    this.disconnect();
-
-    // Tüm zamanlayıcıları temizle
-    this.stopPingInterval();
-    if (this.reconnectTimeoutId) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
-
-    // Ağ olay dinleyicilerini kaldır
-    if (this.networkEventListenersAdded) {
-      window.removeEventListener('online', this.handleOnline);
-      window.removeEventListener('offline', this.handleOffline);
-      this.networkEventListenersAdded = false;
-    }
-
-    // Son durumu logla
-    console.log('SSE servisi kapatıldı ve kaynaklar temizlendi');
   }
 
   /**
@@ -1137,7 +1083,8 @@ class SSEService {
   private handleOnline = () => {
     console.log('Ağ bağlantısı kuruldu, SSE yeniden bağlanılıyor...');
     this.online = true;
-    toast.success('Çevrimiçi moda geçildi');
+    // Toast bildirimi devre dışı bırakıldı
+    // toast.success('Çevrimiçi moda geçildi');
     
     // Bağlantıyı yeniden kur
     this.reconnectAttempts = 0; // Sayacı sıfırla
@@ -1153,7 +1100,8 @@ class SSEService {
   private handleOffline = () => {
     console.log('Ağ bağlantısı kesildi, SSE çevrimdışı moda geçiyor...');
     this.online = false;
-    toast.warning('Çevrimdışı moda geçildi');
+    // Toast bildirimi devre dışı bırakıldı
+    // toast.warning('Çevrimdışı moda geçildi');
     
     if (this.eventSource) {
       this.eventSource.close();
@@ -1168,4 +1116,4 @@ class SSEService {
 // Singleton örneği oluştur
 export const sseService = new SSEService();
 
-export default sseService; 
+export default sseService;

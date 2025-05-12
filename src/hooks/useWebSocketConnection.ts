@@ -1,234 +1,287 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { toast } from 'react-toastify';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import WebSocketClient, { WebSocketMessageType } from '../services/WebSocketClient';
+import { useUser } from './useUser';
 import { getTestMode } from '../utils/testMode';
-import { getWebSocketUrl } from '../utils/env';
 
-export type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+
+interface UseWebSocketResult {
+  isConnected: boolean;
+  isConnecting: boolean;
+  connectionState: ConnectionState;
+  error: Error | null;
+  lastMessage: any;
+  reconnect: () => void;
+  connect: () => void;
+  disconnect: () => void;
+  send: (type: WebSocketMessageType | string, data?: any, topic?: string) => boolean;
+  subscribe: (topic: string, callback: (data: any) => void) => () => void;
+  connectionStats: {
+    reconnectAttempts: number;
+    lastReconnectTime: number | null;
+    uptime: number | null;
+    latency: number | null;
+  };
+  retryConnection: (forceImmediate?: boolean) => void;
+  clearError: () => void;
+}
 
 /**
- * WebSocket bağlantısı kuran ve yöneten custom hook
- * @param url WebSocket bağlantı URL'i veya yolu
- * @param autoReconnect Bağlantı koptuğunda otomatik yeniden bağlanma
- * @param reconnectInterval Yeniden bağlanma denemesi arasındaki süre (ms)
- * @param maxReconnectAttempts Maksimum yeniden bağlanma denemesi sayısı
- * @returns WebSocket durumu ve işlevleri
+ * WebSocket bağlantısını yönetmek için hook
  */
-export const useWebSocketConnection = (
-  url: string,
-  autoReconnect: boolean = true,
-  reconnectInterval: number = 5000,
-  maxReconnectAttempts: number = 5
-) => {
-  const [status, setStatus] = useState<WebSocketStatus>('disconnected');
-  const [messages, setMessages] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectAttemptsRef = useRef<number>(0);
-  const reconnectTimerRef = useRef<number | null>(null);
-
-  // Tam WebSocket URL'ini hesapla
-  const getFullWebSocketUrl = useCallback(() => {
-    // Eğer URL bir protokol ile başlıyorsa (ws:// veya wss://) tam URL olarak kullan
-    if (url.startsWith('ws://') || url.startsWith('wss://')) {
-      return url;
+export const useWebSocketConnection = (): UseWebSocketResult => {
+  const [isConnected, setIsConnected] = useState<boolean>(getTestMode() ? true : WebSocketClient.isConnected);
+  const [isConnecting, setIsConnecting] = useState<boolean>(getTestMode() ? false : WebSocketClient.isConnecting);
+  const [connectionState, setConnectionState] = useState<ConnectionState>(getTestMode() ? 'connected' : 'disconnected');
+  const [error, setError] = useState<Error | null>(null);
+  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [connectionAttempts, setConnectionAttempts] = useState<number>(0);
+  const [lastReconnectTime, setLastReconnectTime] = useState<number | null>(null);
+  const [connectionStartTime, setConnectionStartTime] = useState<number | null>(null);
+  const [latency, setLatency] = useState<number | null>(null);
+  
+  const maxRetries = useRef<number>(5);
+  const retryTimeout = useRef<NodeJS.Timeout | null>(null);
+  const backoffFactor = useRef<number>(1.5);
+  const isComponentMounted = useRef<boolean>(true);
+  
+  const { user } = useUser();
+  
+  // WebSocket durum değişikliklerini dinle
+  useEffect(() => {
+    if (getTestMode()) return; // Test modunda dinleyicileri atla
+    
+    const handleStateChange = (state: any) => {
+      if (!isComponentMounted.current) return;
+      
+      setIsConnected(state.isConnected);
+      setIsConnecting(state.isConnecting);
+      
+      // Bağlantı durumunu güncelle
+      if (state.isConnected) {
+        setConnectionState('connected');
+        setConnectionStartTime(Date.now());
+        setConnectionAttempts(0);
+        setError(null);
+      } else if (state.isConnecting) {
+        setConnectionState('connecting');
+      } else if (state.error) {
+        setConnectionState('error');
+        setError(state.error);
+      } else {
+        setConnectionState('disconnected');
+      }
+      
+      // Bağlantı tekrar denemesi zamanını kaydet
+      if (state.lastReconnectTime) {
+        setLastReconnectTime(state.lastReconnectTime);
+      }
+      
+      // Son latency bilgisini kaydet
+      if (state.connectionStats?.lastLatency) {
+        setLatency(state.connectionStats.lastLatency);
+      }
+      
+      // Son mesajı güncelle
+      if (state.lastMessage) {
+        setLastMessage(state.lastMessage);
+      }
+    };
+    
+    // WebSocket durum değişiklik aboneliği
+    const unsubscribe = WebSocketClient.onStateChange(handleStateChange);
+    
+    // İlk durumu al
+    handleStateChange(WebSocketClient.state);
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+  
+  // Bağlantıyı yeniden dene - akıllı backoff ile
+  const retryConnection = useCallback((forceImmediate = false) => {
+    if (getTestMode()) return;
+    
+    // Zaten bağlı ise işlem yapma
+    if (isConnected) return;
+    
+    // Tekrar deneme sayısını artır
+    const newAttempts = connectionAttempts + 1;
+    setConnectionAttempts(newAttempts);
+    
+    // Mevcut zamanlayıcıyı temizle
+    if (retryTimeout.current) {
+      clearTimeout(retryTimeout.current);
+      retryTimeout.current = null;
     }
     
-    // Diğer durumda, baz URL'e ekle
-    const baseWsUrl = getWebSocketUrl();
-    // URL'in başında / olup olmadığını kontrol et ve uygun şekilde birleştir
-    const path = url.startsWith('/') ? url : `/${url}`;
-    return `${baseWsUrl}${path}`;
-  }, [url]);
-
-  // Bağlantı kurma işlevi
-  const connect = useCallback(() => {
-    try {
-      // Tam WebSocket URL'i 
-      const fullWebSocketUrl = getFullWebSocketUrl();
-      
-      // Test modunda mock WebSocket davranışı
-      if (getTestMode()) {
-        console.info('[Test Modu] WebSocket bağlantısı simüle ediliyor:', fullWebSocketUrl);
-        setStatus('connecting');
-        
-        // 500ms sonra bağlanmış gibi davran
-        setTimeout(() => {
-          setStatus('connected');
-          setError(null);
-          console.info('[Test Modu] WebSocket bağlantısı kuruldu');
-          
-          // Test mesajları gönder (opsiyonel)
-          if (Math.random() > 0.3) { // %70 şans ile test mesajları gönder
-            const interval = setInterval(() => {
-              if (status === 'connected') {
-                const testMessage = {
-                  id: Math.floor(Math.random() * 1000),
-                  type: 'test',
-                  data: { timestamp: new Date().toISOString() },
-                  event: 'update'
-                };
-                setMessages(prev => [...prev, testMessage]);
-              } else {
-                clearInterval(interval);
-              }
-            }, 10000); // Her 10 saniyede bir test mesajı
-            
-            return () => clearInterval(interval);
-          }
-        }, 500);
-        
-        return;
-      }
-      
-      // Gerçek WebSocket bağlantısı
-      setStatus('connecting');
-      
-      // Daha önce açık bağlantıyı kapat
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.close();
-      }
-
-      console.log('[WebSocket] Bağlanılıyor:', fullWebSocketUrl);
-      socketRef.current = new WebSocket(fullWebSocketUrl);
-
-      socketRef.current.onopen = () => {
-        setStatus('connected');
-        setError(null);
-        reconnectAttemptsRef.current = 0; // Yeniden bağlanma sayacını sıfırla
-        console.log('[WebSocket] Bağlantı kuruldu');
-        toast.success('Sunucu bağlantısı kuruldu');
-      };
-
-      socketRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setMessages(prev => [...prev, data]);
-        } catch (err) {
-          console.error('[WebSocket] Mesaj işleme hatası:', err);
-        }
-      };
-
-      socketRef.current.onerror = (e) => {
-        console.error('[WebSocket] Bağlantı hatası:', e);
-        setStatus('error');
-        setError('WebSocket bağlantı hatası');
-        toast.error('Sunucu bağlantısında hata oluştu');
-      };
-
-      socketRef.current.onclose = (e) => {
-        setStatus('disconnected');
-        console.log(`[WebSocket] Bağlantı kapatıldı, kod: ${e.code}, sebep: ${e.reason}`);
-        
-        // Bağlantı beklenmedik şekilde kapandıysa ve otomatik yeniden bağlanma aktifse
-        if (autoReconnect && e.code !== 1000) {
-          handleReconnect();
-        }
-      };
-    } catch (err) {
-      console.error('[WebSocket] Bağlantı kurulumunda hata:', err);
-      setError('WebSocket bağlantısı kurulamadı');
-      setStatus('error');
-      toast.error('Sunucu bağlantısı kurulamadı');
-    }
-  }, [getFullWebSocketUrl, autoReconnect, status]);
-
-  // Otomatik yeniden bağlanma işlevi
-  const handleReconnect = useCallback(() => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.log(`Maksimum yeniden bağlanma denemesi (${maxReconnectAttempts}) aşıldı`);
-      toast.error('Sunucuya bağlanılamıyor. Lütfen sayfayı yenileyin.');
+    // Maksimum deneme sayısını kontrol et
+    if (newAttempts > maxRetries.current) {
+      setError(new Error(`Maksimum bağlantı deneme sayısına ulaşıldı (${maxRetries.current})`));
+      setConnectionState('error');
       return;
     }
     
-    // Önceki zamanlayıcıyı temizle
-    if (reconnectTimerRef.current !== null) {
-      window.clearTimeout(reconnectTimerRef.current);
+    // Hemen bağlanma isteği varsa, beklemeden bağlan
+    if (forceImmediate) {
+      WebSocketClient.connect();
+      setConnectionState('connecting');
+      return;
     }
     
-    reconnectAttemptsRef.current += 1;
-    console.log(`Yeniden bağlanma denemesi ${reconnectAttemptsRef.current}/${maxReconnectAttempts}`);
+    // Üstel backoff ile bekleme süresi hesapla (1s, 2s, 4s, 8s, ...)
+    const delay = Math.min(1000 * Math.pow(backoffFactor.current, newAttempts - 1), 30000);
     
-    const timeoutDuration = reconnectInterval * Math.pow(1.5, reconnectAttemptsRef.current - 1);
-    console.log(`${timeoutDuration}ms sonra yeniden bağlanma denenecek`);
-    
-    toast.info(`Sunucu bağlantısı tekrar deneniyor (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
+    console.log(`WebSocket bağlantısı ${delay}ms sonra tekrar denenecek (${newAttempts}/${maxRetries.current})`);
+    setConnectionState('reconnecting');
     
     // Yeni zamanlayıcı oluştur
-    reconnectTimerRef.current = window.setTimeout(() => {
-      connect();
-    }, timeoutDuration);
-  }, [connect, maxReconnectAttempts, reconnectInterval]);
-
-  // Bağlantı kapatma işlevi
-  const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      if (socketRef.current.readyState === WebSocket.CONNECTING || 
-          socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.close(1000, 'Kullanıcı tarafından kapatıldı');
-        socketRef.current = null;
+    retryTimeout.current = setTimeout(() => {
+      if (!isComponentMounted.current) return;
+      
+      WebSocketClient.connect();
+    }, delay);
+  }, [isConnected, connectionAttempts]);
+  
+  // Kullanıcı değiştiğinde bağlantıyı yeniden kur
+  useEffect(() => {
+    if (getTestMode()) return;
+    
+    // Kullanıcı yoksa ve bağlantı varsa kapat
+    if (!user && isConnected) {
+      WebSocketClient.disconnect();
+    }
+    
+    // Kullanıcı varsa ve bağlantı yoksa bağlan
+    if (user && !isConnected && !isConnecting) {
+      WebSocketClient.connect();
+    }
+  }, [user, isConnected, isConnecting]);
+  
+  // Hata durumunu temizle
+  const clearError = useCallback(() => {
+    setError(null);
+    
+    // Hata sonrasında otomatik tekrar bağlan
+    if (connectionState === 'error') {
+      setConnectionAttempts(0);
+      WebSocketClient.connect();
+    }
+  }, [connectionState]);
+  
+  // Komponent temizlendiğinde bağlantı denemelerini durdur
+  useEffect(() => {
+    return () => {
+      isComponentMounted.current = false;
+      
+      if (retryTimeout.current) {
+        clearTimeout(retryTimeout.current);
       }
-    }
-    
-    setStatus('disconnected');
-    
-    // Yeniden bağlanma zamanlayıcısını iptal et
-    if (reconnectTimerRef.current !== null) {
-      window.clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-    
-    console.log('WebSocket bağlantısı kapatıldı');
+    };
   }, []);
-
-  // Mesaj gönderme işlevi
-  const sendMessage = useCallback((data: any) => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      try {
-        socketRef.current.send(JSON.stringify(data));
-        return true;
-      } catch (err) {
-        console.error('Mesaj gönderilirken hata oluştu:', err);
-        setError('Mesaj gönderilemedi');
-        return false;
+  
+  // WebSocket istemcisini bağla ve bağlantıyı kapat
+  const connect = useCallback(() => {
+    if (getTestMode()) return;
+    
+    setConnectionAttempts(0);
+    WebSocketClient.connect();
+  }, []);
+  
+  const disconnect = useCallback(() => {
+    if (getTestMode()) return;
+    
+    if (retryTimeout.current) {
+      clearTimeout(retryTimeout.current);
+      retryTimeout.current = null;
+    }
+    
+    WebSocketClient.disconnect(true);
+  }, []);
+  
+  // Bağlantıyı yeniden kur
+  const reconnect = useCallback(() => {
+    if (getTestMode()) return;
+    
+    setConnectionAttempts(0);
+    WebSocketClient.reconnect();
+  }, []);
+  
+  // Mesaj gönder
+  const send = useCallback((type: WebSocketMessageType | string, data?: any, topic?: string) => {
+    // String tip varsa, enum değerine dönüştür
+    let messageType: WebSocketMessageType;
+    if (typeof type === 'string') {
+      // String tipini enum tipine dönüştür
+      switch (type) {
+        case 'message':
+          messageType = WebSocketMessageType.MESSAGE;
+          break;
+        case 'broadcast':
+          messageType = WebSocketMessageType.BROADCAST;
+          break;
+        case 'ping':
+          messageType = WebSocketMessageType.PING;
+          break;
+        case 'pong':
+          messageType = WebSocketMessageType.PONG;
+          break;
+        case 'connection':
+          messageType = WebSocketMessageType.CONNECTION;
+          break;
+        case 'subscription':
+          messageType = WebSocketMessageType.SUBSCRIPTION;
+          break;
+        case 'error':
+          messageType = WebSocketMessageType.ERROR;
+          break;
+        case 'reconnect':
+          messageType = WebSocketMessageType.RECONNECT;
+          break;
+        case 'status':
+          messageType = WebSocketMessageType.STATUS;
+          break;
+        default:
+          messageType = WebSocketMessageType.MESSAGE;
       }
     } else {
-      console.error('Mesaj gönderilemedi: Bağlantı kapalı');
-      setError('Mesaj gönderilemedi: Bağlantı kapalı');
-      return false;
+      messageType = type;
     }
+    
+    return WebSocketClient.send(messageType, data, topic);
   }, []);
-
-  // Mesajları temizleme işlevi
-  const clearMessages = useCallback(() => {
-    setMessages([]);
+  
+  // Konuya abone ol
+  const subscribe = useCallback((topic: string, callback: (data: any) => void) => {
+    return WebSocketClient.subscribe(topic, callback);
   }, []);
-
-  // Bağlantı hatalarından sonra manuel yeniden bağlanma
-  const reconnect = useCallback(() => {
-    disconnect();
-    reconnectAttemptsRef.current = 0; // Sayacı sıfırla
-    connect();
-  }, [disconnect, connect]);
-
-  // Component monte edildiğinde bağlantı kur
-  useEffect(() => {
-    connect();
-
-    // Component unmount edildiğinde bağlantıyı kapat
-    return () => {
-      disconnect();
-    };
-  }, [connect, disconnect, url]);
-
+  
+  // Çalışma süresi hesapla
+  const calculateUptime = (): number | null => {
+    if (!connectionStartTime) return null;
+    return Date.now() - connectionStartTime;
+  };
+  
+  // Sonuç döndür
   return {
-    status,
-    isConnected: status === 'connected',
-    messages,
+    isConnected,
+    isConnecting,
+    connectionState,
     error,
-    sendMessage,
-    disconnect,
+    lastMessage,
     reconnect,
-    clearMessages,
-    reconnectAttempts: reconnectAttemptsRef.current,
+    connect,
+    disconnect,
+    send,
+    subscribe,
+    connectionStats: {
+      reconnectAttempts: connectionAttempts,
+      lastReconnectTime,
+      uptime: calculateUptime(),
+      latency
+    },
+    retryConnection,
+    clearError
   };
 }; 

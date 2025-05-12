@@ -1,4 +1,3 @@
-import { toast } from '../utils/toast';
 import { getTestMode } from '../utils/testMode';
 import { ReconnectStrategy } from '../types/system';
 
@@ -130,7 +129,9 @@ class WebSocketClient {
   constructor(config: WebSocketConfig = {}) {
     // Varsayılan yapılandırma değerleri
     const defaultConfig: Required<WebSocketConfig> = {
-      url: import.meta.env.VITE_API_URL ? `ws://${import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '')}/api/ws` : 'ws://localhost:8000/api/ws',
+      url: import.meta.env.VITE_API_URL ? 
+        `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '')}/api/ws` : 
+        `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://localhost:8000/api/ws`,
       reconnectDelay: 3000,
       maxReconnectAttempts: 10,
       pingInterval: 20000,
@@ -145,7 +146,26 @@ class WebSocketClient {
     
     this.config = { ...defaultConfig, ...config };
     this.clientId = this.generateClientId();
-    this.wsUrl = `${this.config.url}/${this.clientId}`;
+    
+    // WebSocket URL'ini protokole göre düzenle
+    let wsUrl = this.config.url;
+    
+    // URL protokol içermiyorsa, uygun protokolü ekleyelim
+    if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      wsUrl = `${protocol}://${wsUrl}`;
+    }
+    
+    // /api/api gibi çift API yolu olmaması için kontrol
+    wsUrl = wsUrl.replace(/\/api\/api\//, '/api/');
+    
+    // HTTPS sayfada ws:// protokolü kullanılmışsa wss:// ile değiştirelim
+    if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+      console.warn('HTTPS sayfada güvensiz WebSocket (ws://) kullanılamaz. wss:// protokolüne geçiliyor.');
+      wsUrl = wsUrl.replace('ws://', 'wss://');
+    }
+    
+    this.wsUrl = `${wsUrl}/${this.clientId}`;
     
     // Yeniden bağlanma stratejisini ayarla
     this._state.reconnectStrategy = this.config.reconnectStrategy;
@@ -341,6 +361,13 @@ class WebSocketClient {
     }
     
     try {
+      // WebSocket URL'ini kontrol et ve gerekirse güncelle
+      if (window.location.protocol === 'https:' && this.wsUrl.startsWith('ws://')) {
+        const secureUrl = this.wsUrl.replace('ws://', 'wss://');
+        console.warn('HTTPS üzerinden güvensiz WebSocket (ws://) kullanılamaz. wss:// protokolüne geçiliyor.');
+        this.wsUrl = secureUrl;
+      }
+      
       this.log(`WebSocket bağlantısı deneniyor: ${this.wsUrl}`);
       this.updateState({ isConnecting: true });
       
@@ -680,7 +707,9 @@ class WebSocketClient {
   private handleMessage(event: MessageEvent): void {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
-      this.log(`Mesaj alındı (${message.type})`, message);
+      if (this.config.debug) {
+        this.log(`Mesaj alındı (${message.type})`, message);
+      }
       
       this.updateState({
         lastMessage: message
@@ -715,8 +744,8 @@ class WebSocketClient {
           
         case WebSocketMessageType.STATUS:
           // Sunucudan gelen durum mesajlarını işle
-          if (message.data?.client_count !== undefined) {
-            // Bağlı istemci sayısı güncellemesi
+          if (message.data?.client_count !== undefined && this.config.debug) {
+            // Bağlı istemci sayısı güncellemesi (sadece debug modunda)
             this.log(`Sunucuda ${message.data.client_count} aktif bağlantı var`);
           }
           break;
@@ -746,9 +775,7 @@ class WebSocketClient {
           
         case WebSocketMessageType.ERROR:
           this.log('Sunucu hatası:', message.error);
-          if (message.error) {
-            toast.error(`WebSocket Hatası: ${message.error}`);
-          }
+          // Toast bildirimleri devre dışı bırakıldı
           break;
       }
       
@@ -791,8 +818,7 @@ class WebSocketClient {
         this.connect();
       }, delay);
     } else {
-      this.log('Maksimum yeniden bağlanma denemesi aşıldı, bağlantı kesildi');
-      toast.error('WebSocket bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
+      this.handleMaxReconnectExceeded();
     }
   }
   
@@ -840,12 +866,17 @@ class WebSocketClient {
   
   // Yeniden bağlanma durumunu bildir
   private notifyReconnecting(delay: number, attempt: number): void {
-    // Kısa süreli bir bildirimi sürekli göstermemek için ilk denemede ve
-    // ardından her 3 denemede bir bildirim göster
-    if (attempt === 1 || attempt % 3 === 0) {
-      const delaySeconds = Math.round(delay / 1000);
-      toast.info(`WebSocket bağlantısı kesik. ${delaySeconds} saniye içinde yeniden bağlanılacak. (Deneme ${attempt}/${this.config.maxReconnectAttempts})`, { autoClose: delay });
-    }
+    // Toast bildirimleri devre dışı bırakıldı
+    // Sadece konsola logla
+    const delaySeconds = Math.round(delay / 1000);
+    this.log(`WebSocket bağlantısı kesik. ${delaySeconds} saniye içinde yeniden bağlanılacak. (Deneme ${attempt}/${this.config.maxReconnectAttempts})`);
+  }
+  
+  // Maksimum yeniden bağlanma denemesi aşıldığında çağrılır
+  private handleMaxReconnectExceeded(): void {
+    this.log('Maksimum yeniden bağlanma denemesi aşıldı, bağlantı kesildi');
+    // Toast bildirimi devre dışı bırakıldı
+    // toast.error('WebSocket bağlantısı kurulamadı. Lütfen sayfayı yenileyin.');
   }
   
   // Bağlantı performansını kaydet

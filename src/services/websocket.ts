@@ -68,10 +68,44 @@ class WebSocketService {
 
     this.setStatus('connecting');
     try {
-      const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws';
-      console.log('WebSocket bağlantısı deneniyor:', wsUrl);
+      // Protokol kontrolü yapan yardımcı fonksiyon
+      function getSecureWebSocketUrl(url: string): string {
+        // URL protokol içermiyorsa, mevcut sayfanın protokolüne göre ekleyelim
+        if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
+          const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+          url = `${protocol}${url}`;
+        }
+        
+        // Çift /api yolunu temizleyelim
+        url = url.replace(/\/api\/api\//, '/api/');
+        
+        // HTTPS sayfada ws:// protokolü kullanılmışsa wss:// ile değiştirelim
+        if (window.location.protocol === 'https:' && url.startsWith('ws://')) {
+          console.warn('HTTPS sayfada güvensiz WebSocket (ws://) kullanılamaz. wss:// protokolüne geçiliyor.');
+          url = url.replace('ws://', 'wss://');
+        }
+        
+        return url;
+      }
+
+      // webSocketUrl oluşturan kısmı da düzeltiyoruz
+      let webSocketUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws';
       
-      this.ws = new WebSocket(wsUrl);
+      // API URL'i içindeki olası "/api" kısmını temizleme
+      if (import.meta.env.VITE_API_URL) {
+        const apiBase = import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
+        webSocketUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${apiBase}/api/ws`;
+      }
+
+      // WebSocket URL'ini güvenlik için kontrol et
+      const secureUrl = getSecureWebSocketUrl(webSocketUrl);
+      if (secureUrl !== webSocketUrl) {
+        webSocketUrl = secureUrl;
+      }
+      
+      console.log('WebSocket bağlantısı deneniyor:', webSocketUrl);
+      
+      this.ws = new WebSocket(webSocketUrl);
 
       // Bağlantı zaman aşımı kontrolü
       const connectionTimeoutId = setTimeout(() => {
@@ -89,7 +123,6 @@ class WebSocketService {
         this.sendConnectionMessage('connected');
         this.startPingInterval();
         console.log('WebSocket bağlantısı başarılı');
-        toast.success('WebSocket bağlantısı kuruldu');
       };
 
       this.ws.onmessage = (event) => {
@@ -106,7 +139,6 @@ class WebSocketService {
           this.handleMessage(message);
         } catch (error) {
           console.error('WebSocket message parse error:', error);
-          toast.error('Mesaj işlenirken hata oluştu');
         }
       };
 
@@ -125,7 +157,6 @@ class WebSocketService {
         console.error('WebSocket error:', error);
         this.setStatus('error');
         this.sendConnectionMessage('disconnected');
-        toast.error('WebSocket bağlantı hatası');
         this.handleReconnect();
       };
     } catch (error) {
@@ -254,7 +285,6 @@ class WebSocketService {
       }, delay);
     } else {
       console.error('Maksimum yeniden bağlanma denemesi aşıldı');
-      toast.error('WebSocket bağlantısı kesildi');
     }
   }
 
@@ -313,9 +343,6 @@ class WebSocketService {
         timestamp: new Date().toISOString()
       };
       this.ws.send(JSON.stringify(message));
-    } else {
-      console.error('WebSocket bağlantısı açık değil');
-      toast.error('Mesaj gönderilemedi: Bağlantı kesik');
     }
   }
 

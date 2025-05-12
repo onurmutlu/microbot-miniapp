@@ -1,3 +1,5 @@
+import { getTestMode } from '../utils/testMode';
+import { getSSEUrl } from '../utils/env';
 import sseService, { SSEConnectionState, SSEMessage } from './sseService';
 
 // SSE mesaj tipleri için enum
@@ -28,24 +30,99 @@ interface SSEClientOptions {
   [key: string]: any;
 }
 
-export class SSEClient {
-  private baseUrl: string;
-  private options: SSEClientOptions;
-  private clientId: string;
+// SSE yapılandırması
+export interface SSEConfig {
+  baseUrl?: string;
+  reconnectDelay?: number;
+  maxReconnectAttempts?: number;
+  withCredentials?: boolean;
+  debug?: boolean;
+  autoConnect?: boolean;
+}
 
-  constructor(baseUrl: string, options: SSEClientOptions = {}) {
-    this.baseUrl = baseUrl;
-    this.options = options;
-    // URL'den clientId'yi çıkar veya rastgele oluştur
-    const urlParts = baseUrl.split('/');
-    this.clientId = urlParts[urlParts.length - 1].includes('client_') 
-      ? urlParts[urlParts.length - 1] 
-      : 'client_' + Math.random().toString(36).substring(2, 10);
+// SSE mesaj işleyici tipi
+type MessageHandler = (message: SSEMessage) => void;
+
+// SSE durum dinleyici tipi 
+type StateListener = (state: SSEState) => void;
+
+export class SSEClient {
+  private eventSource: EventSource | null = null;
+  private config: SSEConfig;
+  private clientId: string;
+  private baseUrl: string;
+  private reconnectTimer: number | null = null;
+  private forceClosed = false;
+  
+  // Kanallara abone olan işleyiciler
+  private channelHandlers: Map<string, Set<MessageHandler>> = new Map();
+  
+  // Genel işleyiciler
+  private messageHandlers: Set<MessageHandler> = new Set();
+  
+  // Bağlantı durumu
+  private state: SSEState = {
+    isConnected: false,
+    isConnecting: false,
+    lastMessage: null,
+    clientId: '',
+    reconnectAttempt: 0,
+    error: null,
+    activeTopics: []
+  };
+  
+  // Durum değişikliği dinleyicileri
+  private stateListeners: Set<StateListener> = new Set();
+  
+  constructor(config: SSEConfig = {}) {
+    // Varsayılan yapılandırma
+    const defaultConfig: SSEConfig = {
+      baseUrl: '',
+      reconnectDelay: 3000,
+      maxReconnectAttempts: 10,
+      withCredentials: false,
+      debug: true,
+      autoConnect: true
+    };
     
-    // Auth token varsa
-    if (options.authToken) {
-      // Token ayarlanabilir, ancak sseService zaten bunu yapıyor
-      console.log('Auth token kullanılıyor:', options.authToken);
+    this.config = { ...defaultConfig, ...config };
+    
+    // Client ID oluştur
+    this.clientId = this.generateClientId();
+    
+    // Protokole göre SSE URL'ini ayarla
+    let baseUrl = this.config.baseUrl || getSSEUrl();
+    
+    // URL protokol içermiyorsa, mevcut sayfanın protokolüne göre ekleyelim
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+      baseUrl = `${protocol}${baseUrl}`;
+    }
+    
+    // Çift /api yol kontrolü
+    baseUrl = baseUrl.replace(/\/api\/api\//, '/api/');
+    
+    // HTTPS sayfada http:// protokolü kullanılmışsa https:// ile değiştirelim
+    if (window.location.protocol === 'https:' && baseUrl.startsWith('http://')) {
+      console.warn('HTTPS sayfada güvensiz SSE (http://) kullanılamaz. https:// protokolüne geçiliyor.');
+      baseUrl = baseUrl.replace('http://', 'https://');
+    }
+    
+    this.baseUrl = baseUrl;
+    
+    // Test modunda otomatik bağlantı yapma
+    if (this.config.autoConnect && !getTestMode()) {
+      this.connect();
+    }
+    
+    // Test modunda bağlı olarak işaretle
+    if (getTestMode()) {
+      this.updateState({
+        isConnected: true,
+        isConnecting: false
+      });
+      
+      this.log('Test modu: SSE bağlantısı simüle ediliyor');
     }
   }
 
@@ -54,41 +131,169 @@ export class SSEClient {
    * @returns Bağlantı kurulduğunda resolve olan promise
    */
   connect() {
-    // Mevcut sseService'i kullanacağız, sadece arayüzü rehbere uygun hale getiriyoruz
-    return new Promise<void>((resolve, reject) => {
-      try {
-        // Bağlantı durumunu kontrol et
-        const currentStatus = sseService.getStatus();
+    // Test modunda bağlantı kurma işlemini atla
+    if (getTestMode()) {
+      this.updateState({
+        isConnected: true,
+        isConnecting: false,
+        reconnectAttempt: 0
+      });
+      return;
+    }
+    
+    // Zaten bağlı veya bağlanıyor ise tekrar bağlanma
+    if (this.eventSource || this.state.isConnecting) {
+      return;
+    }
         
-        if (currentStatus === 'connected') {
-          resolve();
-          return;
-        }
-        
-        // Durumu dinle
-        const unsubscribe = sseService.onStatusChange((status) => {
-          if (status === 'connected') {
-            unsubscribe();
-            resolve();
-          } else if (status === 'error') {
-            unsubscribe();
-            reject(new Error('Bağlantı hatası'));
-          }
-        });
-        
-        // Bağlantıyı başlat
-        sseService.connect();
-      } catch (error) {
-        reject(error);
+    // Zorlayarak kapatılmış ise bağlanma
+    if (this.forceClosed) {
+      return;
+    }
+    
+    try {
+      this.updateState({
+        isConnecting: true
+      });
+      
+      // SSE URL'ini protokol güvenliği için tekrar kontrol et
+      let sseUrl = `${this.baseUrl}/${this.clientId}`;
+      
+      // HTTPS sayfada http:// protokolü kullanılmışsa https:// ile değiştirelim
+      if (window.location.protocol === 'https:' && sseUrl.startsWith('http://')) {
+        console.warn('HTTPS sayfada güvensiz SSE (http://) kullanılamaz. https:// protokolüne geçiliyor.');
+        sseUrl = sseUrl.replace('http://', 'https://');
       }
+      
+      this.log(`SSE bağlantısı deneniyor: ${sseUrl}`);
+      
+      // EventSource oluştur
+      this.eventSource = new EventSource(sseUrl, {
+        withCredentials: this.config.withCredentials
+      });
+      
+      // Olay dinleyicileri ekle
+      this.eventSource.onopen = this.handleOpen.bind(this);
+      this.eventSource.onerror = this.handleError.bind(this);
+      this.eventSource.onmessage = this.handleMessage.bind(this);
+      
+      // Özel olayları dinle
+      this.eventSource.addEventListener('notification', this.handleEvent.bind(this, 'notification'));
+      this.eventSource.addEventListener('update', this.handleEvent.bind(this, 'update'));
+      this.eventSource.addEventListener('alert', this.handleEvent.bind(this, 'alert'));
+      this.eventSource.addEventListener('status', this.handleEvent.bind(this, 'status'));
+      this.eventSource.addEventListener('ping', this.handleEvent.bind(this, 'ping'));
+    } catch (error) {
+      this.handleError(error as Event);
+    }
+  }
+
+  /**
+   * SSE bağlantı açıldığında çağrılır
+   */
+  private handleOpen(event: Event): void {
+    this.log('SSE bağlantısı başarılı');
+    this.updateState({
+      isConnected: true,
+      isConnecting: false,
+      reconnectAttempt: 0,
+      error: null
     });
+  }
+
+  /**
+   * SSE hata olduğunda çağrılır
+   */
+  private handleError(event: Event): void {
+    this.log('SSE bağlantı hatası:', event);
+    this.updateState({
+      isConnected: false,
+      error: new Error('SSE bağlantı hatası')
+    });
+    
+    // Bağlantıyı temizle
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+  }
+
+  /**
+   * SSE mesaj alındığında çağrılır
+   */
+  private handleMessage(event: MessageEvent): void {
+    try {
+      const message = JSON.parse(event.data) as SSEMessage;
+      // Sadece debug modunda log kaydı tut
+      if (this.config.debug) {
+        this.log('SSE mesajı alındı:', message);
+      }
+      
+      // Abone olunan konulara mesajı ilet
+      if (message.topic && this.channelHandlers.has(message.topic)) {
+        const handlers = this.channelHandlers.get(message.topic);
+        handlers?.forEach(handler => handler(message));
+      }
+      
+      // Genel mesaj işleyicilere ilet
+      this.messageHandlers.forEach(handler => handler(message));
+    } catch (error) {
+      console.error('SSE mesaj işleme hatası:', error);
+    }
+  }
+
+  /**
+   * Özel SSE olaylarını işler
+   */
+  private handleEvent(eventType: string, event: MessageEvent): void {
+    try {
+      const message = JSON.parse(event.data) as SSEMessage;
+      this.log(`SSE ${eventType} olayı alındı:`, message);
+      
+      // Olay tipine göre abonelere ilet
+      const topic = `event:${eventType}`;
+      if (this.channelHandlers.has(topic)) {
+        const handlers = this.channelHandlers.get(topic);
+        handlers?.forEach(handler => handler(message));
+      }
+    } catch (error) {
+      console.error(`SSE ${eventType} olayı işleme hatası:`, error);
+    }
   }
 
   /**
    * SSE bağlantısını kapatır
    */
   disconnect() {
-    sseService.disconnect();
+    // Test modunda kapatma işlemini simüle et
+    if (getTestMode()) {
+      this.updateState({
+        isConnected: false,
+        isConnecting: false
+      });
+      return;
+    }
+    
+    this.forceClosed = true;
+    
+    // Zamanlayıcıyı temizle
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    // EventSource'u kapat
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+      
+      this.updateState({
+        isConnected: false,
+        isConnecting: false
+      });
+      
+      this.log('SSE bağlantısı kapatıldı');
+    }
   }
 
   /**
@@ -186,7 +391,13 @@ export class SSEClient {
    * @returns İstatistik verileri
    */
   getStats() {
-    return sseService.getStats();
+    return {
+      isConnected: this.state.isConnected,
+      lastMessage: this.state.lastMessage,
+      clientId: this.state.clientId,
+      connectionState: sseService.getStatus(),
+      activeTopics: this.state.activeTopics
+    };
   }
 
   /**
@@ -272,10 +483,32 @@ export class SSEClient {
       priority: 'critical'
     });
   }
+
+  // Durum güncellemesi
+  private updateState(newState: Partial<SSEState>): void {
+    this.state = { ...this.state, ...newState };
+    
+    // Dinleyicilere bildir
+    this.stateListeners.forEach(listener => {
+      listener(this.state);
+    });
+  }
+
+  // Log
+  private log(message: string, ...args: any[]): void {
+    if (this.config.debug) {
+      console.log(`[SSE] ${message}`, ...args);
+    }
+  }
+
+  // Client ID oluşturma
+  private generateClientId(): string {
+    return Math.random().toString(36).substring(2, 15);
+  }
 }
 
 // Singleton örneği
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-export const sseClient = new SSEClient(`${apiUrl}/api/sse`);
+export const sseClient = new SSEClient({ baseUrl: `${apiUrl}/api/sse` });
 
 export default sseClient; 

@@ -40,6 +40,33 @@ export const api = axios.create({
   }
 })
 
+// Çift /api yolunu kontrol edip düzeltir
+const normalizeApiPath = (path: string): string => {
+  // Eğer path /api ile başlıyorsa ve baseUrl zaten /api ile bitiyorsa
+  // çift /api oluşmasını önle
+  if (path.startsWith('/api/') && API_BASE_URL.endsWith('/api')) {
+    // /api/ ön ekini kaldır
+    return path.substring(4);
+  }
+  
+  // Çift /api yolunu düzelt
+  return path.replace(/^\/api\/api\//, '/api/');
+};
+
+// Tam URL oluştur
+const getFullUrl = (path: string): string => {
+  // Path zaten http:// veya https:// ile başlıyorsa tam URL'dir
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // Path / ile başlamıyorsa ekle
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // API path'ini normalize et ve baseUrl ile birleştir
+  return `${API_BASE_URL}${normalizeApiPath(normalizedPath)}`;
+};
+
 // İstek interceptor'ı
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -55,12 +82,6 @@ api.interceptors.request.use(
     // Yeniden deneme sayacı ekle (yoksa)
     if (config.retryAttempt === undefined) {
       config.retryAttempt = 0;
-    }
-    
-    // URL düzeltmesi - çift /api önlemek için
-    if (config.url && config.url.startsWith('/api/api/')) {
-      config.url = config.url.replace('/api/api/', '/api/');
-      console.warn('API URL düzeltildi:', config.url);
     }
     
     return config
@@ -316,7 +337,7 @@ export const initAuth = async (): Promise<boolean> => {
 // API fonksiyonlarını standardize yanıt formatıyla sar
 export const wrappedGet = async <T = any>(url: string, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.get<T>(url, config);
+    const response = await api.get<T>(getFullUrl(url), config);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -332,7 +353,7 @@ export const wrappedGet = async <T = any>(url: string, config?: any): Promise<St
 
 export const wrappedPost = async <T = any>(url: string, data?: any, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.post<T>(url, data, config);
+    const response = await api.post<T>(getFullUrl(url), data, config);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -348,7 +369,7 @@ export const wrappedPost = async <T = any>(url: string, data?: any, config?: any
 
 export const wrappedPut = async <T = any>(url: string, data?: any, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.put<T>(url, data, config);
+    const response = await api.put<T>(getFullUrl(url), data, config);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -364,7 +385,7 @@ export const wrappedPut = async <T = any>(url: string, data?: any, config?: any)
 
 export const wrappedDelete = async <T = any>(url: string, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.delete<T>(url, config);
+    const response = await api.delete<T>(getFullUrl(url), config);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {

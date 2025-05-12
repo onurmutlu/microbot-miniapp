@@ -161,7 +161,7 @@ export default function LoginPage() {
       const script = document.createElement('script')
       script.id = 'telegram-login'
       script.src = 'https://telegram.org/js/telegram-widget.js?22' // Versiyonu güncelledik
-      script.setAttribute('data-telegram-login', 'MicroBotTR_BOT') // Bot kullanıcı adı
+      script.setAttribute('data-telegram-login', 'MicroBotMiniApp_bot') // Doğru bot adını kullan
       script.setAttribute('data-size', 'large')
       script.setAttribute('data-radius', '8')
       script.setAttribute('data-request-access', 'write')
@@ -410,7 +410,7 @@ export default function LoginPage() {
           <div className="mt-4 bg-gray-900 p-4 rounded-lg border border-gray-700 text-gray-300 text-xs">
             <h4 className="font-bold mb-2">Debug Bilgileri</h4>
             <div className="space-y-1">
-              <p>Bot Kullanıcı Adı: {import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'MicroBotTR_BOT'}</p>
+              <p>Bot Kullanıcı Adı: {import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'MicroBotMiniApp_bot'}</p>
               <p>Widget Durumu: {isScriptLoaded ? 'Yüklendi' : 'Yüklenemedi'}</p>
               <p>Simülasyon Modu: {useSimulation ? 'Aktif' : 'Devre Dışı'}</p>
               <p>Mini App: {isMiniApp() ? 'Evet' : 'Hayır'}</p>

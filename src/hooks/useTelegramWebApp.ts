@@ -147,8 +147,83 @@ export const useTelegramWebApp = (): UseTelegramWebAppResult => {
     const tgWebAppData = queryParams.get('tgWebAppData') || queryParams.get('initData');
     if (tgWebAppData && !isTelegramClient) {
       console.log('URL üzerinden Telegram initData bulundu, kontrol ediliyor...');
-      // TODO: Bu veriyi doğrulama ve kullanma işlemi
-      setIsTelegramClient(true);
+      
+      try {
+        // URL'den gelen veriyi deşifre et
+        const decodedData = decodeURIComponent(tgWebAppData);
+        const parsedData = new URLSearchParams(decodedData);
+        
+        // Gerekli alanların varlığını kontrol et
+        const user = parsedData.get('user');
+        const authDate = parsedData.get('auth_date');
+        const hash = parsedData.get('hash');
+        
+        if (user && authDate && hash) {
+          // Sahte WebApp nesnesi oluştur
+          const mockWebApp: TelegramWebApp = {
+            initData: tgWebAppData,
+            initDataUnsafe: {
+              user: user ? JSON.parse(user) : undefined,
+              auth_date: Number(authDate),
+              hash: hash
+            },
+            colorScheme: 'light',
+            themeParams: {
+              bg_color: '#ffffff',
+              text_color: '#000000',
+              hint_color: '#999999',
+              link_color: '#2481cc',
+              button_color: '#2481cc',
+              button_text_color: '#ffffff',
+              secondary_bg_color: '#f0f0f0'
+            },
+            viewportHeight: window.innerHeight,
+            viewportStableHeight: window.innerHeight,
+            isExpanded: true,
+            expand: () => {},
+            close: () => { window.close(); },
+            showConfirm: (message) => Promise.resolve(window.confirm(message)),
+            showAlert: (message) => Promise.resolve(window.alert(message)),
+            ready: () => {},
+            MainButton: {
+              text: '',
+              color: '#2481cc',
+              textColor: '#ffffff',
+              isVisible: false,
+              isActive: false,
+              isProgressVisible: false,
+              setText: () => {},
+              onClick: () => {},
+              show: () => {},
+              hide: () => {},
+              enable: () => {},
+              disable: () => {},
+              showProgress: () => {},
+              hideProgress: () => {}
+            },
+            BackButton: {
+              isVisible: false,
+              onClick: () => {},
+              show: () => {},
+              hide: () => {}
+            },
+            HapticFeedback: {
+              impactOccurred: () => {},
+              notificationOccurred: () => {},
+              selectionChanged: () => {}
+            }
+          };
+          
+          setWebApp(mockWebApp);
+          setReady(true);
+          setIsTelegramClient(true);
+          console.log('URL parametrelerinden WebApp özellikleri oluşturuldu');
+        } else {
+          console.warn('URL parametrelerinde eksik WebApp verileri var');
+        }
+      } catch (error) {
+        console.error('WebApp verileri işlenirken hata oluştu:', error);
+      }
     }
   }, [queryParams, isTelegramClient]);
   
