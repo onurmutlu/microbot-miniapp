@@ -59,11 +59,13 @@ export const useAuth = () => {
         }));
         
         // WebSocket bağlantısını kur
-        try {
-          websocketService.connect();
-        } catch (err) {
-          console.warn('[Auth] WebSocket bağlantısı kurulamadı (test modu):', err);
-        }
+        setTimeout(() => {
+          try {
+            websocketService.connect();
+          } catch (err) {
+            console.warn('[Auth] WebSocket bağlantısı kurulamadı (test modu):', err);
+          }
+        }, 500);
         
         return;
       }
@@ -75,6 +77,31 @@ export const useAuth = () => {
         console.log('[Auth] Token bulunamadı, giriş yapılmadı');
         dispatch(setLoading(false));
         return;
+      }
+      
+      // Offline mode kontrolü - Eğer offine_mode true ise, localStorage'daki kullanıcı ile devam et
+      if (localStorage.getItem('offline_mode') === 'true') {
+        console.log('[Auth] Offline mod tespit edildi');
+        
+        // Kullanıcı bilgilerini al
+        const userDataStr = localStorage.getItem('telegram_user');
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            
+            // Store'a dispatch et
+            dispatch(setCredentials({ 
+              user: userData,
+              token: existingToken
+            }));
+            
+            console.log('[Auth] Offline mod ile giriş yapıldı');
+            dispatch(setLoading(false));
+            return;
+          } catch (e) {
+            console.error('[Auth] LocalStorage user verisi parse edilemedi', e);
+          }
+        }
       }
       
       // Token doğrulaması ve kullanıcı bilgilerini alma
@@ -90,13 +117,13 @@ export const useAuth = () => {
           }
         }
         
-        // Backend'den kullanıcı bilgilerini al
+        // Backend'den kullanıcı bilgilerini al - Hızlı timeout ile
         try {
           const response = await api.get('/api/auth/me', {
             headers: {
               Authorization: `Bearer ${existingToken}`
             },
-            timeout: 3000 // 3 saniye timeout ile backend'e bağlanma dene
+            timeout: 2000 // 2 saniye timeout ile backend'e bağlanma dene (daha hızlı kontrol için)
           });
           
           // Backend'den kullanıcı bilgileri başarıyla alındı
@@ -126,11 +153,13 @@ export const useAuth = () => {
         }
         
         // WebSocket bağlantısını kur
-        try {
-          websocketService.connect();
-        } catch (err) {
-          console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
-        }
+        setTimeout(() => {
+          try {
+            websocketService.connect();
+          } catch (err) {
+            console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+          }
+        }, 500);
       } catch (error) {
         console.error('[Auth] Kimlik doğrulama sırasında hata:', error);
         logout();
@@ -224,11 +253,13 @@ export const useAuth = () => {
               token 
             }));
             
-            try {
-              websocketService.connect();
-            } catch (err) {
-              console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
-            }
+            setTimeout(() => {
+              try {
+                websocketService.connect();
+              } catch (err) {
+                console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+              }
+            }, 500);
             
             window.dispatchEvent(new StorageEvent('storage', {
               key: 'access_token',
@@ -258,6 +289,14 @@ export const useAuth = () => {
           }));
           
           console.log('[Auth] Offline mod etkinleştirildi');
+          
+          setTimeout(() => {
+            try {
+              websocketService.connect();
+            } catch (err) {
+              console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+            }
+          }, 500);
           
           window.dispatchEvent(new StorageEvent('storage', {
             key: 'access_token',
@@ -307,11 +346,13 @@ export const useAuth = () => {
           token: token 
         }));
         
-        try {
-        websocketService.connect();
-        } catch (err) {
-          console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
-        }
+        setTimeout(() => {
+          try {
+            websocketService.connect();
+          } catch (err) {
+            console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+          }
+        }, 500);
         
         // Çerezleri senkronize etmek için storage eventi tetikle
         window.dispatchEvent(new StorageEvent('storage', {

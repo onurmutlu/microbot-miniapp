@@ -89,22 +89,40 @@ export const isTelegramMiniApp = (): boolean => {
  */
 export const initTelegramApp = () => {
   if (isTelegramMiniApp()) {
+    // Mini uygulamanın hemen başladığını bildir (tüm konfigürasyondan önce)
+    if (telegram) {
+      telegram.ready();
+    }
+    
     // Ana tema rengini Telegram renklerine uygun ayarla
-    document.documentElement.style.setProperty('--tg-theme-bg-color', telegram.backgroundColor || '#ffffff');
-    document.documentElement.style.setProperty('--tg-theme-text-color', telegram.textColor || '#000000');
-    document.documentElement.style.setProperty('--tg-theme-hint-color', telegram.hintColor || '#999999');
-    document.documentElement.style.setProperty('--tg-theme-link-color', telegram.linkColor || '#2481cc');
-    document.documentElement.style.setProperty('--tg-theme-button-color', telegram.buttonColor || '#007aff');
-    document.documentElement.style.setProperty('--tg-theme-button-text-color', telegram.buttonTextColor || '#ffffff');
+    try {
+      const tgApp = telegram as any; // Typescript için tip dönüşümü
+      document.documentElement.style.setProperty('--tg-theme-bg-color', tgApp.backgroundColor || '#ffffff');
+      document.documentElement.style.setProperty('--tg-theme-text-color', tgApp.textColor || '#000000');
+      document.documentElement.style.setProperty('--tg-theme-hint-color', tgApp.hintColor || '#999999');
+      document.documentElement.style.setProperty('--tg-theme-link-color', tgApp.linkColor || '#2481cc');
+      document.documentElement.style.setProperty('--tg-theme-button-color', tgApp.buttonColor || '#007aff');
+      document.documentElement.style.setProperty('--tg-theme-button-text-color', tgApp.buttonTextColor || '#ffffff');
+    } catch (err) {
+      console.warn('Telegram tema renkleri ayarlanamadı:', err);
+    }
     
-    // MainButton'ı gizle (gerekirse daha sonra gösterebiliriz)
-    telegram.MainButton.hide();
+    // Ekranı genişlet - kullanıcı deneyimi için önemli
+    try {
+      telegram.expand();
+    } catch (err) {
+      console.warn('Telegram penceresi genişletilemedi:', err);
+    }
     
-    // BackButton'ı gizle (gerekirse daha sonra gösterebiliriz)
-    telegram.BackButton.hide();
-    
-    // Uygulama hazır olduğunda Telegram'a bildir
-    telegram.ready();
+    // MainButton'ı ve BackButton'ı gizle (performans için öncelikle kaldıralım)
+    setTimeout(() => {
+      try {
+        telegram.MainButton.hide();
+        telegram.BackButton.hide();
+      } catch (err) {
+        console.warn('Telegram butonları gizlenemedi:', err);
+      }
+    }, 100);
     
     return true;
   }

@@ -338,56 +338,68 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   // İlk yüklenmede sayfa ayarları
   useEffect(() => {
+    const startTime = Date.now();
+    
     // Telegram Mini App ise
     if (isMiniApp() && window.Telegram?.WebApp) {
       // Body'e MiniApp class'ını ekle (CSS için)
       document.body.classList.add('is-telegram-miniapp');
       
-      // Telegram WebApp başlat
+      console.log('[App] Telegram MiniApp başlatılıyor...');
+      
+      // Telegram WebApp başlat - önce sadece temel işlemleri yap
       initTelegramApp();
-
-      console.log('[App] Telegram MiniApp ortamı algılandı');
-      console.log('[App] WebApp verileri:', {
-        platform: window.Telegram.WebApp.platform || 'bilinmiyor',
-        version: window.Telegram.WebApp.version || 'bilinmiyor',
-        colorScheme: window.Telegram.WebApp.colorScheme || 'bilinmiyor',
-        viewportHeight: window.Telegram.WebApp.viewportHeight,
-        viewportStableHeight: window.Telegram.WebApp.viewportStableHeight,
-        dataLength: window.Telegram.WebApp.initData?.length || 0,
-        user: window.Telegram.WebApp.initDataUnsafe?.user || null
-      });
       
-      // Hazır olduğunu bildir
-      window.Telegram.WebApp.ready();
+      // Hazır olduğunu bildir - bunu en erken yapalım
+      window.Telegram?.WebApp?.ready();
       
-      // Tam ekran yap
-      window.Telegram.WebApp.expand();
-      
-      // Telegram'den gelen verileri kullanarak otomatik giriş yap
-      const telegramUser = window.Telegram.WebApp.initDataUnsafe?.user;
-      const initData = window.Telegram.WebApp.initData;
-      
-      if (telegramUser && initData) {
-        console.log('[App] Telegram kullanıcı verileri bulundu, otomatik giriş deneniyor...');
-        
-        // LocalStorage'e Telegram verilerini kaydet
-        localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
-        localStorage.setItem('is_miniapp_session', 'true');
-        
-        // Sayfa yüklendiğinde login işlemi LoginGuard tarafından yapılacak
-        console.log('[App] Kullanıcı bilgileri saklandı, LoginGuard tarafından işlenecek');
-      } else if (telegramUser) {
-        console.warn('[App] Telegram kullanıcısı var fakat initData eksik');
-        
-        // Sadece kullanıcı bilgisine erişim varsa yine de kaydet
-        localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
-        localStorage.setItem('is_miniapp_session', 'true');
-        localStorage.setItem('init_data_missing', 'true');
-      } else {
-        console.error('[App] Telegram kullanıcı verileri eksik!');
+      // Telegram ilk açılışta kullanıcı deneyimini iyileştirmek için genişletmeyi hemen yap
+      try {
+        window.Telegram?.WebApp?.expand();
+      } catch (err) {
+        console.warn('[App] Telegram MiniApp expand hatası:', err);
       }
+      
+      console.log('[App] Telegram MiniApp ortamı algılandı, başlatma süresi: ' + (Date.now() - startTime) + 'ms');
+      
+      // Platform bilgilerini asenkron olarak logla (performans etkilenmesin)
+      setTimeout(() => {
+        console.log('[App] WebApp platform verileri:', {
+          platform: window.Telegram?.WebApp?.platform || 'bilinmiyor',
+          version: window.Telegram?.WebApp?.version || 'bilinmiyor',
+          colorScheme: window.Telegram?.WebApp?.colorScheme || 'bilinmiyor',
+          viewportHeight: window.Telegram?.WebApp?.viewportHeight,
+          viewportStableHeight: window.Telegram?.WebApp?.viewportStableHeight,
+          dataLength: window.Telegram?.WebApp?.initData?.length || 0,
+          user: window.Telegram?.WebApp?.initDataUnsafe?.user || null
+        });
+      }, 500);
+      
+      // Kullanıcı verilerini arka planda işlemek için timeout kullan
+      setTimeout(() => {
+        // Telegram'den gelen verileri kullanarak otomatik giriş yap
+        const telegramUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        const initData = window.Telegram?.WebApp?.initData;
+        
+        if (telegramUser && initData) {
+          console.log('[App] Telegram kullanıcı verileri bulundu, otomatik giriş hazırlanıyor');
+          
+          // LocalStorage'e Telegram verilerini kaydet
+          localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+          localStorage.setItem('is_miniapp_session', 'true');
+        } else if (telegramUser) {
+          console.warn('[App] Telegram kullanıcısı var fakat initData eksik');
+          
+          // Sadece kullanıcı bilgisine erişim varsa yine de kaydet
+          localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
+          localStorage.setItem('is_miniapp_session', 'true');
+          localStorage.setItem('init_data_missing', 'true');
+        } else {
+          console.error('[App] Telegram kullanıcı verileri eksik!');
+        }
+      }, 100);
 
-      // iOS Safe Area ayarlaması
+      // iOS Safe Area ayarlaması - bunu performans etkilemesin diye diğerlerinden sonra yap
       const setIOSSafeArea = () => {
         setTimeout(() => {
           const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tg-viewport-stable-height'), 10) || 0;

@@ -49,6 +49,14 @@ interface OfflineManagerConfig {
   retryDelayMs: number;
   autoSync: boolean;
   debug: boolean;
+  // API sunucusu ile ilgili ayarlar
+  apiHealthCheck: {
+    enabled: boolean;        // Sunucu sağlık kontrolünü etkinleştir/devre dışı bırak
+    endpoint: string;        // Kontrol edilecek endpoint
+    intervalMs: number;      // Kontrol aralığı
+    timeoutMs: number;       // İstek zaman aşımı
+    maxFailedAttempts: number; // Sunucunun çevrimdışı sayılması için gereken ardışık başarısız deneme sayısı
+  }
 }
 
 class OfflineManager {
@@ -58,6 +66,9 @@ class OfflineManager {
   private isSyncing: boolean = false;
   private syncTimer: number | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
+  private healthCheckTimer: number | null = null;
+  private failedHealthChecks: number = 0;
+  private isServerAvailable: boolean = true; // Sunucunun ulaşılabilir olup olmadığı
   
   private config: OfflineManagerConfig = {
     queueStorageKey: 'offline_request_queue',
@@ -66,13 +77,27 @@ class OfflineManager {
     defaultPriority: 'normal',
     retryDelayMs: 5000,
     autoSync: true,
-    debug: false
+    debug: false,
+    apiHealthCheck: {
+      enabled: true,
+      endpoint: '/health',
+      intervalMs: 30000,       // 30 saniye
+      timeoutMs: 5000,         // 5 saniye
+      maxFailedAttempts: 3     // 3 başarısız deneme sonrası sunucu çevrimdışı kabul edilir
+    }
   };
   
   constructor(config?: Partial<OfflineManagerConfig>) {
     // Yapılandırmayı güncelle
     if (config) {
-      this.config = { ...this.config, ...config };
+      this.config = { 
+        ...this.config, 
+        ...config,
+        apiHealthCheck: {
+          ...this.config.apiHealthCheck,
+          ...(config.apiHealthCheck || {})
+        }
+      };
     }
     
     // Bağlantı durumu değişikliklerini dinle
@@ -84,14 +109,153 @@ class OfflineManager {
     // LocalStorage'dan bekleyen istekleri yükle
     this.loadPendingRequests();
     
+    // API sunucu sağlık kontrolünü başlat
+    if (this.config.apiHealthCheck.enabled) {
+      this.startApiHealthCheck();
+    }
+    
     this.log('OfflineManager başlatıldı');
   }
   
   /**
    * Uygulamanın çevrimiçi olup olmadığını kontrol eder
+   * Hem cihaz ağ durumunu hem de API sunucusunun durumunu dikkate alır
    */
   isNetworkOnline(): boolean {
+    return this.isOnline && this.isServerAvailable;
+  }
+  
+  /**
+   * Sadece cihazın ağ bağlantısı durumunu kontrol eder
+   */
+  isDeviceOnline(): boolean {
     return this.isOnline;
+  }
+  
+  /**
+   * API sunucusunun durumunu döndürür
+   */
+  isApiServerAvailable(): boolean {
+    return this.isServerAvailable;
+  }
+  
+  /**
+   * API sunucusu sağlık kontrolü yapmaya başlar
+   */
+  private startApiHealthCheck(): void {
+    this.stopApiHealthCheck(); // Önceki zamanlayıcıyı temizle
+    
+    // İlk kontrolü hemen yap
+    this.checkApiHealth();
+    
+    // Düzenli aralıklarla kontrol et
+    this.healthCheckTimer = window.setInterval(() => {
+      this.checkApiHealth();
+    }, this.config.apiHealthCheck.intervalMs);
+  }
+  
+  /**
+   * API sağlık kontrolünü durdurur
+   */
+  private stopApiHealthCheck(): void {
+    if (this.healthCheckTimer !== null) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+  }
+  
+  /**
+   * API sunucusunun durumunu kontrol eder
+   */
+  private async checkApiHealth(): Promise<boolean> {
+    if (!this.isOnline) {
+      // Cihaz çevrimdışıysa API kontrolü yapmaya gerek yok
+      this.isServerAvailable = false;
+      return false;
+    }
+    
+    try {
+      // API sunucusunu kontrol et - baseURL'i URL'den çıkar
+      const baseUrl = this.getBaseUrl();
+      const endpoint = this.config.apiHealthCheck.endpoint;
+      const url = `${baseUrl}${endpoint}`;
+      
+      this.log(`API sağlık kontrolü yapılıyor: ${url}`);
+      
+      // AbortController ile timeout belirle
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.apiHealthCheck.timeoutMs);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+        cache: 'no-store'
+      });
+      
+      // Timeout kontrol zamanını temizle
+      clearTimeout(timeoutId);
+      
+      // Başarılı yanıt kontrolü
+      if (response.ok) {
+        this.failedHealthChecks = 0;
+        
+        // Eğer sunucu durumu değiştiyse
+        if (!this.isServerAvailable) {
+          this.isServerAvailable = true;
+          this.emit('serverAvailable');
+          this.log('API sunucusu tekrar kullanılabilir durumda');
+          
+          // Sunucu tekrar çalışır durumda, bekleyen istekleri senkronize et
+          if (this.config.autoSync && this.pendingRequests.length > 0) {
+            setTimeout(() => {
+              this.syncPendingRequests();
+            }, 2000); // Sunucu bağlantısının stabil olması için biraz bekle
+          }
+        }
+        
+        return true;
+      } else {
+        this.handleApiHealthCheckFailure(`HTTP Hata: ${response.status}`);
+        return false;
+      }
+    } catch (error) {
+      this.handleApiHealthCheckFailure(
+        error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu'
+      );
+      return false;
+    }
+  }
+  
+  /**
+   * API sağlık kontrolü başarısız olduğunda çağrılır
+   */
+  private handleApiHealthCheckFailure(error: string): void {
+    this.failedHealthChecks++;
+    this.log(`API sağlık kontrolü başarısız (${this.failedHealthChecks}/${this.config.apiHealthCheck.maxFailedAttempts}): ${error}`);
+    
+    // Maksimum başarısız deneme sayısını aştıysa sunucuyu çevrimdışı say
+    if (this.failedHealthChecks >= this.config.apiHealthCheck.maxFailedAttempts) {
+      if (this.isServerAvailable) {
+        this.isServerAvailable = false;
+        this.emit('serverUnavailable');
+        this.log('API sunucusu ulaşılamaz durumda, çevrimdışı moda geçiliyor');
+      }
+    }
+  }
+  
+  /**
+   * İstek URL'inden base URL'i çıkarır
+   */
+  private getBaseUrl(): string {
+    // Eğer bekleyen istek varsa, onun URL'inden base URL'i çıkar
+    if (this.pendingRequests.length > 0) {
+      const url = new URL(this.pendingRequests[0].url);
+      return `${url.protocol}//${url.host}`;
+    }
+    
+    // Yoksa sayfanın URL'inden kur
+    return window.location.origin;
   }
   
   /**
@@ -164,11 +328,79 @@ class OfflineManager {
     this.log(`İstek kuyruğa eklendi: ${id} - ${method} ${url}`);
     
     // Çevrimiçiyse ve otomatik senkronizasyon etkinse hemen senkronize et
-    if (this.isOnline && this.config.autoSync) {
+    if (this.isNetworkOnline() && this.config.autoSync) {
       this.syncPendingRequests();
     }
     
     return id;
+  }
+  
+  /**
+   * İsteği hemen yapan ancak başarısız olursa kuyruğa ekleyen yardımcı metod
+   */
+  async immediateOrQueue<T = any>(
+    url: string,
+    method: RequestType,
+    options: {
+      body?: any;
+      headers?: Record<string, string>;
+      priority?: 'low' | 'normal' | 'high' | 'critical'; 
+      parseResponse?: (response: Response) => Promise<T>;
+      fallbackValue?: T;
+    } = {}
+  ): Promise<T> {
+    // Eğer çevrimiçi değilse, hemen kuyruğa ekle ve fallback değeri döndür
+    if (!this.isNetworkOnline()) {
+      const requestId = this.enqueueRequest(url, method, {
+        body: options.body,
+        headers: options.headers,
+        priority: options.priority
+      });
+      
+      if (options.fallbackValue !== undefined) {
+        return options.fallbackValue;
+      }
+      
+      throw new Error(`Çevrimdışı: İstek kuyruğa eklendi (${requestId})`);
+    }
+    
+    // Çevrimiçiyse, isteği hemen yapmayı dene
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Yanıtı işle
+      if (options.parseResponse) {
+        return await options.parseResponse(response);
+      } else {
+        return await response.json() as T;
+      }
+    } catch (error) {
+      // İstek başarısız oldu, kuyruğa ekle ve fallback değeri döndür (varsa)
+      this.log(`Anlık istek başarısız, kuyruğa ekleniyor: ${method} ${url}`, error);
+      
+      const requestId = this.enqueueRequest(url, method, {
+        body: options.body,
+        headers: options.headers,
+        priority: options.priority || 'high' // Anlık istekler daha yüksek öncelikli
+      });
+      
+      if (options.fallbackValue !== undefined) {
+        return options.fallbackValue;
+      }
+      
+      throw new Error(`İstek başarısız, kuyruğa eklendi (${requestId}): ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   
   /**
@@ -209,7 +441,7 @@ class OfflineManager {
    * Bekleyen istekleri senkronize etmeye çalışır
    */
   async syncPendingRequests(): Promise<{ success: number; failed: number }> {
-    if (!this.isOnline) {
+    if (!this.isNetworkOnline()) {
       this.log('Çevrimdışı - senkronizasyon atlanıyor');
       return { success: 0, failed: 0 };
     }
@@ -247,7 +479,7 @@ class OfflineManager {
       // Her bir isteği sırayla işle
       for (const request of prioritizedRequests) {
         // Senkronizasyon sırasında çevrimdışına geçildiyse dur
-        if (!this.isOnline) {
+        if (!this.isNetworkOnline()) {
           this.log('Senkronizasyon sırasında çevrimdışına geçildi, işlem durduruluyor');
           break;
         }
@@ -261,14 +493,22 @@ class OfflineManager {
         this.emit('requestProcessing', { request });
         
         try {
+          // AbortController ile timeout belirle
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 saniye timeout
+          
           // Fetch API ile isteği gönder
           const response = await fetch(request.url, {
             method: request.method,
             headers: request.headers,
             body: request.body ? JSON.stringify(request.body) : undefined,
             cache: 'no-cache',
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            signal: controller.signal
           });
+          
+          // Timeout kontrol zamanını temizle
+          clearTimeout(timeoutId);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -304,6 +544,11 @@ class OfflineManager {
             
             this.emit('requestRetryScheduled', { request, error });
             this.log(`İstek tekrar denenecek (${request.retries}/${request.maxRetries}): ${request.id}`, error);
+          }
+          
+          // Eğer bir istekte hata alındıysa, API sağlık kontrolü yap
+          if (this.config.apiHealthCheck.enabled) {
+            setTimeout(() => this.checkApiHealth(), 1000);
           }
         }
       }
@@ -453,8 +698,13 @@ class OfflineManager {
     
     this.emit('online');
     
+    // API sağlık kontrolü yap
+    if (this.config.apiHealthCheck.enabled) {
+      this.checkApiHealth();
+    }
+    
     // Otomatik senkronizasyon etkinse senkronize et
-    if (this.config.autoSync && this.pendingRequests.length > 0) {
+    if (this.config.autoSync && this.pendingRequests.length > 0 && this.isServerAvailable) {
       this.log('Çevrimiçine geçildi, bekleyen istekler senkronize ediliyor');
       
       // Biraz bekleyip senkronize et (ağ bağlantısının stabil olmasını sağlar)
@@ -481,6 +731,14 @@ class OfflineManager {
   };
   
   /**
+   * API sağlık durumunu manuel olarak kontrol eder 
+   * (kullanıcı aksiyon tetiklemesi için)
+   */
+  async checkServerAvailability(): Promise<boolean> {
+    return await this.checkApiHealth();
+  }
+  
+  /**
    * Kaynakları temizler
    */
   dispose(): void {
@@ -493,6 +751,8 @@ class OfflineManager {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
     }
+    
+    this.stopApiHealthCheck();
     
     this.listeners.clear();
     this.log('OfflineManager kaynakları temizlendi');
@@ -508,11 +768,18 @@ class OfflineManager {
   }
 }
 
-// Singleton örneği
+// Singleton örneği - daha akıllı ve dayanıklı
 export const offlineManager = new OfflineManager({
-  debug: false,
+  debug: true, // Geliştirme aşamasında debug etkin
   autoSync: true,
-  maxRetries: 5
+  maxRetries: 5,
+  apiHealthCheck: {
+    enabled: true,
+    endpoint: '/health',  // Sağlık kontrol endpoint'i
+    intervalMs: 60000,    // 1 dakika
+    timeoutMs: 5000,      // 5 saniye timeout süresi
+    maxFailedAttempts: 2  // 2 başarısız deneme sonrası sunucu çevrimdışı
+  }
 });
 
 export default offlineManager; 
