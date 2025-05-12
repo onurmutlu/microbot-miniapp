@@ -71,7 +71,7 @@ export interface ConnectionPerformance {
   successful: boolean;
 }
 
-class WebSocketClient {
+export class WebSocketClient {
   private ws: WebSocket | null = null;
   private config: Required<WebSocketConfig>;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -330,7 +330,23 @@ class WebSocketClient {
     };
   }
   
-  // WebSocket bağlantısını başlat
+  // WebSocket URL'ini protokol güvenliği için tekrar kontrol et ve alternatifler dene
+  private getWebSocketUrl(): string {
+    // Ana WSS URL
+    let wsUrl = this.wsUrl;
+    
+    // Alternatif path'ler
+    const wsPaths = [
+      wsUrl,
+      wsUrl.replace('/api/ws', '/ws'),
+      wsUrl.replace('/api/ws', '/socket'),
+      wsUrl.replace('/api/ws', '/api/socket')
+    ];
+    
+    return wsPaths[this.reconnectAttempt % wsPaths.length];
+  }
+  
+  // Bağlantı kur fonksiyonunu güncelle
   public connect(): void {
     if (getTestMode()) {
       // ReconnectManager durumunu güncelle
@@ -361,18 +377,12 @@ class WebSocketClient {
     }
     
     try {
-      // WebSocket URL'ini kontrol et ve gerekirse güncelle
-      if (window.location.protocol === 'https:' && this.wsUrl.startsWith('ws://')) {
-        const secureUrl = this.wsUrl.replace('ws://', 'wss://');
-        console.warn('HTTPS üzerinden güvensiz WebSocket (ws://) kullanılamaz. wss:// protokolüne geçiliyor.');
-        this.wsUrl = secureUrl;
-      }
-      
-      this.log(`WebSocket bağlantısı deneniyor: ${this.wsUrl}`);
+      const wsUrl = this.getWebSocketUrl();
+      this.log(`WebSocket bağlantısı deneniyor: ${wsUrl}`);
       this.updateState({ isConnecting: true });
       
       this.connectionStartTime = Date.now();
-      this.ws = new WebSocket(this.wsUrl);
+      this.ws = new WebSocket(wsUrl);
       
       // WebSocket olaylarını dinle
       this.ws.onopen = this.handleOpen.bind(this);

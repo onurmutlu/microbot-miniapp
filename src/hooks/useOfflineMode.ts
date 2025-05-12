@@ -32,6 +32,7 @@ export const useOfflineMode = () => {
         cacheDuration?: number;
         priority?: 'low' | 'normal' | 'high' | 'critical';
         skipOfflineQueue?: boolean;
+        fallbackData?: any;
       };
     } = {}
   ): Promise<T> => {
@@ -53,6 +54,16 @@ export const useOfflineMode = () => {
       // Önbellekte varsa ve çevrimdışıysa veya skipOfflineQueue ayarlanmışsa doğrudan kullan
       if (cachedData && (!navigator.onLine || offlineOptions.skipOfflineQueue)) {
         return cachedData;
+      }
+      
+      // Önbellekte yoksa ve fallback data tanımlanmışsa
+      if (!navigator.onLine && offlineOptions.fallbackData) {
+        // Fallback veriyi önbelleğe al ve döndür
+        cacheManager.setApiCache(endpoint, offlineOptions.fallbackData, {}, {
+          expiry: cacheDuration,
+          priority: 'high'
+        });
+        return offlineOptions.fallbackData as T;
       }
     }
     

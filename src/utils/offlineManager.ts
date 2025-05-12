@@ -164,67 +164,58 @@ class OfflineManager {
     }
   }
   
+  // Sağlık kontrolü için alternatif endpoint'ler
+  private healthEndpoints = ['/health', '/api/health', '/api/ping', '/status'];
+  
   /**
    * API sunucusunun durumunu kontrol eder
    */
   private async checkApiHealth(): Promise<boolean> {
-    if (!this.isOnline) {
-      // Cihaz çevrimdışıysa API kontrolü yapmaya gerek yok
-      this.isServerAvailable = false;
-      return false;
+    // Tüm sağlık endpoint'lerini sırayla dene
+    for (const endpoint of this.healthEndpoints) {
+      try {
+        const baseUrl = this.getBaseUrl();
+        const url = `${baseUrl}${endpoint}`;
+        
+        this.log(`API sağlık kontrolü deneniyor: ${url}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.config.apiHealthCheck.timeoutMs);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          this.failedHealthChecks = 0;
+          if (!this.isServerAvailable) {
+            this.isServerAvailable = true;
+            this.emit('serverAvailable');
+            this.log('API sunucusu tekrar kullanılabilir durumda');
+            
+            // Sunucu tekrar çalışır durumda, bekleyen istekleri senkronize et
+            if (this.config.autoSync && this.pendingRequests.length > 0) {
+              setTimeout(() => {
+                this.syncPendingRequests();
+              }, 2000); // Sunucu bağlantısının stabil olması için biraz bekle
+            }
+          }
+          return true;
+        }
+      } catch (error) {
+        // Bu endpoint için hata oluştu, diğerini dene
+        console.warn(`Endpoint ${endpoint} kontrol edilirken hata oluştu:`, error);
+      }
     }
     
-    try {
-      // API sunucusunu kontrol et - baseURL'i URL'den çıkar
-      const baseUrl = this.getBaseUrl();
-      const endpoint = this.config.apiHealthCheck.endpoint;
-      const url = `${baseUrl}${endpoint}`;
-      
-      this.log(`API sağlık kontrolü yapılıyor: ${url}`);
-      
-      // AbortController ile timeout belirle
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.apiHealthCheck.timeoutMs);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal,
-        cache: 'no-store'
-      });
-      
-      // Timeout kontrol zamanını temizle
-      clearTimeout(timeoutId);
-      
-      // Başarılı yanıt kontrolü
-      if (response.ok) {
-        this.failedHealthChecks = 0;
-        
-        // Eğer sunucu durumu değiştiyse
-        if (!this.isServerAvailable) {
-          this.isServerAvailable = true;
-          this.emit('serverAvailable');
-          this.log('API sunucusu tekrar kullanılabilir durumda');
-          
-          // Sunucu tekrar çalışır durumda, bekleyen istekleri senkronize et
-          if (this.config.autoSync && this.pendingRequests.length > 0) {
-            setTimeout(() => {
-              this.syncPendingRequests();
-            }, 2000); // Sunucu bağlantısının stabil olması için biraz bekle
-          }
-        }
-        
-        return true;
-      } else {
-        this.handleApiHealthCheckFailure(`HTTP Hata: ${response.status}`);
-        return false;
-      }
-    } catch (error) {
-      this.handleApiHealthCheckFailure(
-        error instanceof Error ? error.message : 'Bilinmeyen bir hata oluştu'
-      );
-      return false;
-    }
+    // Tüm endpoint'ler başarısız oldu
+    this.handleApiHealthCheckFailure("Tüm sağlık kontrol endpoint'leri başarısız oldu");
+    return false;
   }
   
   /**

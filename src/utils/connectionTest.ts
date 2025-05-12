@@ -4,7 +4,9 @@ import { getTestMode } from './testMode';
 
 // API_BASE_URL'yi api.ts'den alıyoruz
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const WS_BASE_URL = `ws://${import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8000'}/ws`;
+// WebSocket protokolünü sayfanın protokolüne göre ayarla
+const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+const WS_BASE_URL = `${protocol}${import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8000'}/ws`;
 const CONNECTION_TIMEOUT = 5000; // 5 saniye
 
 export async function testApiConnection(): Promise<boolean> {
