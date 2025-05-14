@@ -42,12 +42,15 @@ interface ExtendedAxiosError extends AxiosError {
   code?: string;
 }
 
+// Default axios config ile API instance oluştur
 export const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000, // 10 saniye
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // HttpOnly cookie desteği için credentials ekle
+  withCredentials: true
 })
 
 // Çift /api yolunu kontrol edip düzeltir
@@ -80,6 +83,7 @@ const getFullUrl = (path: string): string => {
 // İstek interceptor'ı
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Token eklemek için kontrol
     const token = localStorage.getItem('access_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -138,6 +142,18 @@ api.interceptors.response.use(
       method
     });
     
+    // MiniApp için özel success: false kontrolleri
+    if (response.data && response.data.success === false) {
+      console.warn('[API] Başarısız yanıt:', response.data.message || 'Bilinmeyen hata');
+      const error = new Error(response.data.message || 'İşlem başarısız') as ExtendedAxiosError;
+      error.standardizedError = {
+        success: false,
+        message: response.data.message || 'İşlem başarısız',
+        data: response.data.data || null
+      };
+      return Promise.reject(error);
+    }
+    
     return response;
   },
   async (error: ExtendedAxiosError) => {
@@ -166,36 +182,65 @@ api.interceptors.response.use(
       // Token geçersiz veya süresi dolmuş
       const currentToken = localStorage.getItem('access_token');
       if (currentToken) {
-        console.log('[API] Token mevcut ama 401 hatası alındı, yeniden giriş gerekebilir');
+        console.log('[API] Token mevcut ama 401 hatası alındı, token yenileme deneniyor');
         
+        try {
+          // Güncellenmiş token yenileme endpoint'ini kullan
+          const refreshResponse = await api.post('/api/auth/refresh-token', {
+            token: currentToken // Hem body'de hem de cookie'de token gönder
+          }, { 
+            headers: { 'X-Refresh-Token': 'true' },
+            withCredentials: true // Cookie için credentials ekle
+          });
+          
+          // Yeni token kontrolü
+          if (refreshResponse.data?.token || refreshResponse.data?.data?.token) {
+            const newToken = refreshResponse.data?.token || refreshResponse.data?.data?.token;
+            console.log('[API] Token yenilemesi başarılı, yeni token alındı');
+            localStorage.setItem('access_token', newToken);
+            
+            // Orijinal isteği yeni token ile tekrarla
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${newToken}`;
+            
+            // İsteği tekrarla
+            return axios(config);
+          }
+        } catch (refreshError) {
+          console.error('[API] Token yenileme başarısız:', refreshError);
+        }
+        
+        // Token yenileme başarısız olursa MiniApp kontrolü yap
         // İnit Data yeniden kontrol et
-        if (window.Telegram?.WebApp?.initData && !config.url?.includes('/auth/')) {
-          console.log('[API] MiniApp oturumu algılandı, token yenileme deneniyor');
+        if (window.Telegram?.WebApp?.initData) {
+          console.log('[API] MiniApp oturumu algılandı, yeni kimlik doğrulama deneniyor');
           
           try {
-            // İnit data ile yeniden giriş dene
-            const authResponse = await api.post('/auth/telegram-login', {
+            // Yeni MiniApp endpoint'ini kullan
+            const authResponse = await api.post('/api/v1/miniapp/auth', {
               initData: window.Telegram.WebApp.initData,
               initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
               user: window.Telegram.WebApp.initDataUnsafe?.user
             }, { 
-              headers: { 'X-Retry-Auth': 'true' } 
+              headers: { 'X-Retry-Auth': 'true' },
+              withCredentials: true // Cookie için credentials ekle
             });
             
-            if (authResponse.data?.token) {
+            if (authResponse.data?.token || authResponse.data?.data?.token) {
               // Yeni token al ve kaydet
-              console.log('[API] Yeni token alındı, oturum yenileniyor');
-              localStorage.setItem('access_token', authResponse.data.token);
+              const newToken = authResponse.data?.token || authResponse.data?.data?.token;
+              console.log('[API] MiniApp doğrulaması başarılı, yeni token alındı');
+              localStorage.setItem('access_token', newToken);
               
               // Orijinal isteği yeni token ile tekrarla
               config.headers = config.headers || {};
-              config.headers.Authorization = `Bearer ${authResponse.data.token}`;
+              config.headers.Authorization = `Bearer ${newToken}`;
               
               // İsteği tekrarla
               return axios(config);
             }
           } catch (retryError) {
-            console.error('[API] Token yenileme başarısız:', retryError);
+            console.error('[API] MiniApp doğrulaması başarısız:', retryError);
           }
         }
         
@@ -341,7 +386,25 @@ api.interceptors.response.use(
         });
       }
       
-      // Diğer API istekleri için de mock yanıtlar eklenebilir
+      // MiniApp doğrulama için mock yanıt
+      if (url.includes('/miniapp/auth') || url.includes('/validate-token')) {
+        console.log('Test modu: MiniApp auth mock yanıtı döndürülüyor');
+        return Promise.resolve({
+          data: {
+            success: true,
+            message: 'Doğrulama başarılı',
+            data: {
+              token: 'test-token-' + Date.now(),
+              user: window.Telegram?.WebApp?.initDataUnsafe?.user || {
+                id: 'test-user-' + Date.now(),
+                username: 'test_user',
+                first_name: 'Test',
+                last_name: 'User'
+              }
+            }
+          }
+        });
+      }
     }
 
     // Ağ hatası veya timeout durumunda yeniden deneme
@@ -385,6 +448,13 @@ api.interceptors.response.use(
           } else if (errorData.error) {
             standardError.message = errorData.error;
           }
+          
+          // MiniApp için özel hata kontrolleri
+          if (errorData.success === false) {
+            standardError.success = false;
+            standardError.message = errorData.message || 'Bilinmeyen hata';
+            standardError.data = errorData.data || null;
+          }
         }
       }
       
@@ -424,8 +494,33 @@ export const standardizeResponse = <T = any>(response: AxiosResponse): StandardR
   };
 };
 
-// Yardımcı fonksiyonlar
-export const initAuth = async (): Promise<boolean> => {
+// Yeni MiniApp doğrulama endpoint'leri
+export const validateMiniAppToken = async (): Promise<StandardResponse<any>> => {
+  try {
+    const token = localStorage.getItem('access_token');
+    
+    // Mini App token doğrulama
+    const response = await api.post('/api/v1/miniapp/validate-token', {
+      token // Body'de token gönder (cookie zaten gönderilecek)
+    }, {
+      withCredentials: true // Cookie için credentials ekle
+    });
+    
+    return standardizeResponse(response);
+  } catch (error) {
+    if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
+      return error.standardizedError as StandardResponse<any>;
+    }
+    return { 
+      success: false, 
+      message: 'Token doğrulanamadı', 
+      data: null 
+    };
+  }
+}
+
+// MiniApp authentication
+export const miniAppAuth = async (): Promise<boolean> => {
   try {
     // Telegram initData'yı kullanarak authentication
     // Telegram SDK veya window.Telegram.WebApp'dan initData'yı al
@@ -434,45 +529,48 @@ export const initAuth = async (): Promise<boolean> => {
     
     // Önce window.Telegram.WebApp'ı kontrol et
     if (window.Telegram?.WebApp?.initData) {
-      console.log('[API] initAuth - window.Telegram.WebApp.initData kullanılıyor');
+      console.log('[API] miniAppAuth - window.Telegram.WebApp.initData kullanılıyor');
       initData = window.Telegram.WebApp.initData;
       userData = window.Telegram.WebApp.initDataUnsafe?.user || {};
     } 
     // Sonra Telegram SDK'yı kontrol et
     else if (Telegram?.initData) {
-      console.log('[API] initAuth - Telegram SDK initData kullanılıyor');
+      console.log('[API] miniAppAuth - Telegram SDK initData kullanılıyor');
       initData = Telegram.initData;
     }
     
     if (initData) {
-      console.log('[API] initAuth - initData var, kimlik doğrulama isteği gönderiliyor');
-      console.log('[API] initAuth - URL:', `${api.defaults.baseURL}/auth/telegram-login`);
+      console.log('[API] miniAppAuth - initData var, kimlik doğrulama isteği gönderiliyor');
+      console.log('[API] miniAppAuth - URL:', `${api.defaults.baseURL}/api/v1/miniapp/auth`);
       
-      // Auth isteği gönder
-      const response = await api.post('/auth/telegram-login', {
+      // Yeni endpoint ile auth isteği gönder
+      const response = await api.post('/api/v1/miniapp/auth', {
         initData,
         initDataUnsafe: window.Telegram?.WebApp?.initDataUnsafe || {},
         user: userData
       }, {
         timeout: 10000, // 10 saniye
         headers: {
-          'X-Debug-Info': 'InitAuth-Function'
-        }
+          'X-Debug-Info': 'MiniAppAuth-Function'
+        },
+        withCredentials: true // Cookie için credentials ekle
       });
       
-      if (response.data?.token) {
-        console.log('[API] initAuth - Kimlik doğrulama başarılı, token alındı');
-        localStorage.setItem('access_token', response.data.token);
+      // Token kontrolü (direct veya data içinde olabilir)
+      const token = response.data?.token || response.data?.data?.token;
+      if (token) {
+        console.log('[API] miniAppAuth - Kimlik doğrulama başarılı, token alındı');
+        localStorage.setItem('access_token', token);
         return true;
       } else {
-        console.error('[API] initAuth - Token alınamadı:', response.data);
+        console.error('[API] miniAppAuth - Token alınamadı:', response.data);
       }
     } else {
-      console.error('[API] initAuth - initData bulunamadı');
+      console.error('[API] miniAppAuth - initData bulunamadı');
     }
     return false;
   } catch (error) {
-    console.error('[API] Authentication hatası:', error);
+    console.error('[API] MiniApp Authentication hatası:', error);
     return false;
   }
 }
@@ -480,7 +578,11 @@ export const initAuth = async (): Promise<boolean> => {
 // API fonksiyonlarını standardize yanıt formatıyla sar
 export const wrappedGet = async <T = any>(url: string, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.get<T>(getFullUrl(url), config);
+    // HttpOnly cookie desteği
+    const defaultConfig = { withCredentials: true };
+    const mergedConfig = config ? { ...defaultConfig, ...config } : defaultConfig;
+    
+    const response = await api.get<T>(getFullUrl(url), mergedConfig);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -496,7 +598,11 @@ export const wrappedGet = async <T = any>(url: string, config?: any): Promise<St
 
 export const wrappedPost = async <T = any>(url: string, data?: any, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.post<T>(getFullUrl(url), data, config);
+    // HttpOnly cookie desteği
+    const defaultConfig = { withCredentials: true };
+    const mergedConfig = config ? { ...defaultConfig, ...config } : defaultConfig;
+    
+    const response = await api.post<T>(getFullUrl(url), data, mergedConfig);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -512,7 +618,11 @@ export const wrappedPost = async <T = any>(url: string, data?: any, config?: any
 
 export const wrappedPut = async <T = any>(url: string, data?: any, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.put<T>(getFullUrl(url), data, config);
+    // HttpOnly cookie desteği
+    const defaultConfig = { withCredentials: true };
+    const mergedConfig = config ? { ...defaultConfig, ...config } : defaultConfig;
+    
+    const response = await api.put<T>(getFullUrl(url), data, mergedConfig);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {
@@ -528,7 +638,11 @@ export const wrappedPut = async <T = any>(url: string, data?: any, config?: any)
 
 export const wrappedDelete = async <T = any>(url: string, config?: any): Promise<StandardResponse<T>> => {
   try {
-    const response = await api.delete<T>(getFullUrl(url), config);
+    // HttpOnly cookie desteği
+    const defaultConfig = { withCredentials: true };
+    const mergedConfig = config ? { ...defaultConfig, ...config } : defaultConfig;
+    
+    const response = await api.delete<T>(getFullUrl(url), mergedConfig);
     return standardizeResponse<T>(response);
   } catch (error) {
     if (error instanceof AxiosError && 'standardizedError' in error && error.standardizedError) {

@@ -6,6 +6,7 @@ import api from '../config/api';
 import { websocketService } from '../services/websocket';
 import { getTestMode } from '../utils/testMode';
 import { toast } from 'react-toastify';
+import { miniAppAuth, validateMiniAppToken } from '../utils/api';
 
 export const useAuth = () => {
   const dispatch = useDispatch();
@@ -117,13 +118,89 @@ export const useAuth = () => {
           }
         }
         
+        // MiniApp token doğrulama
+        if (window.Telegram?.WebApp?.initData) {
+          try {
+            // Yeni validate-token endpoint'ini kullan
+            const validateResponse = await validateMiniAppToken();
+            
+            if (validateResponse.success) {
+              console.log('[Auth] MiniApp token doğrulaması başarılı:', validateResponse.data);
+              
+              // Kullanıcı verisini ve token'ı güncelleyebiliriz
+              if (validateResponse.data?.user) {
+                userData = validateResponse.data.user;
+              }
+              
+              // Yeni token varsa güncelle
+              if (validateResponse.data?.token) {
+                localStorage.setItem('access_token', validateResponse.data.token);
+              }
+              
+              dispatch(setCredentials({
+                user: userData,
+                token: existingToken
+              }));
+              
+              // WebSocket bağlantısını kur
+              setTimeout(() => {
+                try {
+                  websocketService.connect();
+                } catch (err) {
+                  console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+                }
+              }, 500);
+              
+              return;
+            } else {
+              console.warn('[Auth] MiniApp token doğrulaması başarısız, yeniden doğrulama denenecek');
+              
+              // Token doğrulanamadı, yeniden MiniApp kimlik doğrulama dene
+              const authResult = await miniAppAuth();
+              if (authResult) {
+                console.log('[Auth] MiniApp yeniden doğrulama başarılı');
+                
+                // Kullanıcı verisini tekrar kontrol et
+                const refreshedUserStr = localStorage.getItem('telegram_user');
+                if (refreshedUserStr) {
+                  try {
+                    userData = JSON.parse(refreshedUserStr);
+                  } catch (e) {
+                    console.error('[Auth] Yenilenen user verisi parse edilemedi', e);
+                  }
+                }
+                
+                // Redux store'a dispatch et
+                const refreshedToken = localStorage.getItem('access_token');
+                dispatch(setCredentials({ 
+                  user: userData,
+                  token: refreshedToken || existingToken 
+                }));
+                
+                setTimeout(() => {
+                  try {
+                    websocketService.connect();
+                  } catch (err) {
+                    console.warn('[Auth] WebSocket bağlantısı kurulamadı:', err);
+                  }
+                }, 500);
+                
+                return;
+              }
+            }
+          } catch (validateError) {
+            console.error('[Auth] MiniApp token doğrulama hatası:', validateError);
+          }
+        }
+        
         // Backend'den kullanıcı bilgilerini al - Hızlı timeout ile
         try {
           const response = await api.get('/api/auth/me', {
             headers: {
               Authorization: `Bearer ${existingToken}`
             },
-            timeout: 2000 // 2 saniye timeout ile backend'e bağlanma dene (daha hızlı kontrol için)
+            timeout: 2000, // 2 saniye timeout ile backend'e bağlanma dene (daha hızlı kontrol için)
+            withCredentials: true // HttpOnly cookie desteği
           });
           
           // Backend'den kullanıcı bilgileri başarıyla alındı
@@ -233,24 +310,25 @@ export const useAuth = () => {
         
         try {
           // Backend bağlantısını dene (sınırlı süreyle)
-          console.log('[Auth] Backend endpoint URL:', `${api.defaults.baseURL}/api/auth/telegram-login`);
+          console.log('[Auth] Backend endpoint URL:', `${api.defaults.baseURL}/api/v1/miniapp/auth`);
           console.log('[Auth] Gönderilen veri:', JSON.stringify(telegramData, null, 2));
           
-          // İstek yaparken doğru endpoint kullanıldığından emin oluyoruz
-          const response = await api.post('/auth/telegram-login', telegramData, {
+          // Yeni MiniApp auth endpoint'ini kullan
+          const response = await api.post('/api/v1/miniapp/auth', telegramData, {
             timeout: 10000, // 10 saniye timeout ile backend bağlantı denemesi
             headers: {
               'Content-Type': 'application/json',
               'X-Debug-Info': 'MiniApp-Auth'
-            }
+            },
+            withCredentials: true // HttpOnly cookie desteği için
           });
           
-          // Backend yanıtı başarılı
-          if (response.data && response.data.token) {
+          // Backend yanıtı başarılı (token doğrudan veya data içinde olabilir)
+          const token = response.data?.token || response.data?.data?.token;
+          const user = response.data?.user || response.data?.data?.user || userData;
+          
+          if (token) {
             console.log('[Auth] Backend giriş başarılı:', response.data);
-            
-            const token = response.data.token;
-            const user = response.data.user || userData;
             
             localStorage.setItem('access_token', token);
             localStorage.setItem('telegram_user', JSON.stringify(user));
@@ -326,8 +404,16 @@ export const useAuth = () => {
           headers: {
             'Content-Type': 'application/json',
             'X-Debug-Info': 'Web-Auth'
-          }
+          },
+          withCredentials: true // HttpOnly cookie desteği
         });
+        
+        // MiniApp yanıt formatı kontrolü (success: false olabilir)
+        if (response.data?.success === false) {
+          console.error('[Auth] Backend yanıtı success: false -', response.data.message);
+          toast.error(response.data.message || 'Giriş işlemi başarısız');
+          return false;
+        }
         
         if (!response.data) {
           console.error('[Auth] Backend yanıtı geçersiz - yanıt alınamadı');
@@ -335,8 +421,9 @@ export const useAuth = () => {
           return false;
         }
         
-        // Yanıt içindeki token ve user'ı al
-        const { token, user } = response.data;
+        // Yanıt içindeki token ve user'ı al (token doğrudan veya data içinde olabilir)
+        const token = response.data?.token || response.data?.data?.token;
+        const user = response.data?.user || response.data?.data?.user || telegramData;
         
         if (!token) {
           console.error('[Auth] Backend yanıtında token yok:', response.data);
@@ -344,19 +431,16 @@ export const useAuth = () => {
           return false;
         }
         
-        // Kullanıcı verisi yoksa sunucudan dönen yanıta bak veya telegramData'dan al
-        const userData = user || telegramData;
-        
-        console.log('[Auth] Giriş başarılı:', { user: userData, token });
+        console.log('[Auth] Giriş başarılı:', { user, token });
         
         // Token ve kullanıcı verilerini kaydet
         localStorage.setItem('access_token', token);
-        localStorage.setItem('telegram_user', JSON.stringify(userData));
+        localStorage.setItem('telegram_user', JSON.stringify(user));
         localStorage.removeItem('offline_mode'); // Offline modu temizle
         
         dispatch(setCredentials({ 
-          user: userData, 
-          token: token 
+          user, 
+          token
         }));
         
         setTimeout(() => {
@@ -378,10 +462,17 @@ export const useAuth = () => {
         console.error('[Auth] Backend giriş hatası:', error);
         
         // Error detaylarını göster
-        const errorMsg = error.response?.data?.detail || 
-                        error.response?.data?.message || 
-                        'Giriş yapılırken bir hata oluştu';
-                        
+        let errorMsg = 'Giriş yapılırken bir hata oluştu';
+        
+        // MiniApp formatı kontrolü (success: false)
+        if (error.response?.data?.success === false) {
+          errorMsg = error.response.data.message || errorMsg;
+        } else {
+          errorMsg = error.response?.data?.detail || 
+                    error.response?.data?.message || 
+                    errorMsg;
+        }
+        
         dispatch(setError(errorMsg));
         
         // Hata alertini göster

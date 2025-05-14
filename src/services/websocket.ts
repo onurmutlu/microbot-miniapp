@@ -88,13 +88,28 @@ class WebSocketService {
         return url;
       }
 
-      // webSocketUrl oluşturan kısmı da düzeltiyoruz
+      // webSocketUrl oluşturan kısmı güncelliyoruz (yeni API endpoint'ini kullan)
       let webSocketUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/api/ws';
       
       // API URL'i içindeki olası "/api" kısmını temizleme
       if (import.meta.env.VITE_API_URL) {
         const apiBase = import.meta.env.VITE_API_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
         webSocketUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${apiBase}/api/ws`;
+      }
+
+      // Token alarak auth_key olarak ekleyelim
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // URL'e query parameter ekle
+        const separator = webSocketUrl.includes('?') ? '&' : '?';
+        webSocketUrl = `${webSocketUrl}${separator}auth_key=${encodeURIComponent(token)}`;
+        
+        // Client ID'yi de ekle
+        webSocketUrl = `${webSocketUrl}&client_id=${this.clientId}`;
+      } else {
+        // Sadece client_id ekle
+        const separator = webSocketUrl.includes('?') ? '&' : '?';
+        webSocketUrl = `${webSocketUrl}${separator}client_id=${this.clientId}`;
       }
 
       // WebSocket URL'ini güvenlik için kontrol et
