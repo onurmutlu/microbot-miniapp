@@ -1,11 +1,11 @@
 import React, { ReactNode } from 'react';
-import { cn } from '../../utils/cn';
 
-interface GlassCardProps {
+export interface GlassCardProps {
   children: ReactNode;
   className?: string;
   hoverEffect?: 'glow' | 'scale' | 'both' | 'none';
   intensity?: 'light' | 'medium' | 'strong';
+  variant?: 'default' | 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info';
   onClick?: () => void;
 }
 
@@ -14,6 +14,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
   className = '',
   hoverEffect = 'both',
   intensity = 'medium',
+  variant = 'default',
   onClick
 }) => {
   // Efekt yoğunluğuna göre sınıf belirleme
@@ -44,6 +45,26 @@ const GlassCard: React.FC<GlassCardProps> = ({
     }
   };
 
+  // Varyant renklerini belirleme
+  const getVariantClasses = () => {
+    switch (variant) {
+      case 'primary':
+        return 'border-blue-500/40 dark:border-blue-400/40';
+      case 'secondary':
+        return 'border-purple-500/40 dark:border-purple-400/40';
+      case 'success':
+        return 'border-green-500/40 dark:border-green-400/40';
+      case 'danger':
+        return 'border-red-500/40 dark:border-red-400/40';
+      case 'warning':
+        return 'border-amber-500/40 dark:border-amber-400/40'; 
+      case 'info':
+        return 'border-cyan-500/40 dark:border-cyan-400/40';
+      default:
+        return 'border-gray-200/40 dark:border-gray-700/40';
+    }
+  };
+
   return (
     <div
       className={`
@@ -60,14 +81,21 @@ const GlassCard: React.FC<GlassCardProps> = ({
         cursor-${onClick ? 'pointer' : 'default'}
         ${getIntensityClasses()}
         ${getHoverClasses()}
+        ${getVariantClasses()}
         ${className}
       `}
       onClick={onClick}
     >
       {/* Gradient overlay */}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-br opacity-30
-        from-white/40 via-transparent to-white/5
-        dark:from-white/10 dark:via-transparent dark:to-white/5" 
+      <div className={`absolute inset-0 -z-10 bg-gradient-to-br opacity-30
+        ${variant === 'primary' ? 'from-blue-500/20 via-transparent to-blue-500/5' :
+          variant === 'secondary' ? 'from-purple-500/20 via-transparent to-purple-500/5' :
+          variant === 'success' ? 'from-green-500/20 via-transparent to-green-500/5' :
+          variant === 'danger' ? 'from-red-500/20 via-transparent to-red-500/5' :
+          variant === 'warning' ? 'from-amber-500/20 via-transparent to-amber-500/5' :
+          variant === 'info' ? 'from-cyan-500/20 via-transparent to-cyan-500/5' :
+          'from-white/40 via-transparent to-white/5 dark:from-white/10 dark:via-transparent dark:to-white/5'
+        }`} 
       />
       
       {/* Glass shine effect */}

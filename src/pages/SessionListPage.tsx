@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { PlusIcon, TrashIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import api from '../utils/api';
 import { showSuccess, showError } from '../utils/toast';
@@ -27,8 +27,7 @@ const SessionListPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const navigate = useNavigate();
-  const { activeSession, setActiveSession, refreshActiveSession } = useActiveSession();
+  const { activeSession, setActiveSession } = useActiveSession();
 
   const fetchSessions = async () => {
     try {
@@ -126,7 +125,7 @@ const SessionListPage: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Telegram Hesaplarım</h1>
         <Link 
           to="/new-session" 
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Yeni Hesap Ekle</span>
@@ -134,78 +133,78 @@ const SessionListPage: React.FC = () => {
       </div>
       
       {profile && (
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 mb-6">
-          <h2 className="text-lg font-semibold mb-2 text-gray-700 dark:text-gray-200">Paket Bilgilerim</h2>
+        <div className="bg-gray-800 shadow-md rounded-lg p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-2 text-white">Paket Bilgilerim</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Paket</p>
-              <p className="font-semibold text-gray-800 dark:text-white">{profile.package.name}</p>
+            <div className="bg-gray-700 p-3 rounded-md">
+              <p className="text-gray-300 text-sm">Paket</p>
+              <p className="font-semibold text-white">{profile.package.name}</p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Mevcut Hesaplar</p>
-              <p className="font-semibold text-gray-800 dark:text-white">
+            <div className="bg-gray-700 p-3 rounded-md">
+              <p className="text-gray-300 text-sm">Mevcut Hesaplar</p>
+              <p className="font-semibold text-white">
                 {profile.currentSessions}/{profile.package.maxSessions}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Kalan Hesap Hakkı</p>
-              <p className="font-semibold text-gray-800 dark:text-white">{profile.remainingSessionRights}</p>
+            <div className="bg-gray-700 p-3 rounded-md">
+              <p className="text-gray-300 text-sm">Kalan Hesap Hakkı</p>
+              <p className="font-semibold text-white">{profile.remainingSessionRights}</p>
             </div>
           </div>
         </div>
       )}
 
       {sessions.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-8 text-center">
-          <p className="text-gray-600 dark:text-gray-300 mb-4">Henüz hiç Telegram hesabı eklenmemiş.</p>
+        <div className="bg-gray-800 shadow-md rounded-lg p-8 text-center">
+          <p className="text-gray-300 mb-4">Henüz hiç Telegram hesabı eklenmemiş.</p>
           <Link 
             to="/new-session" 
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-colors"
           >
             <PlusIcon className="w-5 h-5" />
             <span>İlk Hesabını Ekle</span>
           </Link>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+        <div className="bg-gray-800 shadow-md rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="min-w-full divide-y divide-gray-700">
+              <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Telefon Numarası
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Durum
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Eklenme Tarihi
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
                     İşlemler
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="divide-y divide-gray-700">
                 {sessions.map((session) => (
-                  <tr key={session.id}>
+                  <tr key={session.id} className="hover:bg-gray-750">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="text-sm font-medium text-white">
                           {formatPhoneNumber(session.phone)}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${session.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
-                          session.status === 'inactive' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 
-                          'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                        ${session.status === 'active' ? 'bg-green-900 text-green-200' : 
+                          session.status === 'inactive' ? 'bg-yellow-900 text-yellow-200' : 
+                          'bg-red-900 text-red-200'}`}>
                         {session.status === 'active' ? 'Aktif' : 
                           session.status === 'inactive' ? 'Pasif' : 'Süresi Dolmuş'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {formatDate(session.createdAt)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -215,8 +214,8 @@ const SessionListPage: React.FC = () => {
                           disabled={activeSession?.id === session.id}
                           className={`inline-flex items-center px-3 py-1.5 border rounded-md text-xs font-medium
                             ${activeSession?.id === session.id 
-                              ? 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700 cursor-default' 
-                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'}`}
+                              ? 'bg-green-900 text-green-200 border-green-700 cursor-default' 
+                              : 'bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600'}`}
                         >
                           {activeSession?.id === session.id ? (
                             <>
@@ -230,7 +229,7 @@ const SessionListPage: React.FC = () => {
                         <button
                           onClick={() => handleDeleteSession(session.id)}
                           disabled={isDeleting === session.id}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-red-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-red-400 dark:border-gray-600 dark:hover:bg-gray-600"
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-600 shadow-sm text-xs font-medium rounded-md text-red-400 bg-gray-700 hover:bg-gray-600"
                         >
                           {isDeleting === session.id ? (
                             <Spinner size="sm" />

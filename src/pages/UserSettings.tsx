@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { QuestionMarkCircleIcon, ClockIcon, BoltIcon, ArrowPathIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { QuestionMarkCircleIcon, ClockIcon, BoltIcon, ArrowPathIcon, ShieldCheckIcon, SunIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import { settingsService, AutoStartSettings } from '../services/settingsService';
 import GlassCard from '../components/ui/GlassCard';
 import { Toggle, Button } from '../components/ui/FormElements';
 import SessionManager from '../components/session/SessionManager';
+import useTheme from '../hooks/useTheme';
 
 const UserSettings: React.FC = () => {
   const [settings, setSettings] = useState<AutoStartSettings>({
@@ -15,6 +16,7 @@ const UserSettings: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [showSessionManager, setShowSessionManager] = useState<boolean>(false);
   const [hasActiveSession, setHasActiveSession] = useState<boolean>(false);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     fetchSettings();
@@ -153,6 +155,45 @@ const UserSettings: React.FC = () => {
                     </Button>
                   </div>
                 )}
+              </div>
+            </div>
+          </GlassCard>
+
+          {/* Arayüz Ayarları */}
+          <GlassCard className="mb-6" variant="info">
+            <div className="p-5">
+              <div className="flex items-center mb-4">
+                <SunIcon className="w-5 h-5 mr-2 text-[#3f51b5]" /> 
+                <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">Arayüz Ayarları</h2>
+              </div>
+              
+              <div className="space-y-5">
+                <div className="p-4 backdrop-blur-sm bg-white/30 dark:bg-gray-800/30 rounded-lg border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center mb-1.5">
+                        <span className="font-medium text-gray-700 dark:text-gray-200">Arayüz Teması</span>
+                        <div className="relative ml-2 group">
+                          <QuestionMarkCircleIcon className="h-4 w-4 text-gray-400 cursor-help" />
+                          <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 p-2 glass-dialog text-white text-sm rounded shadow-lg z-10">
+                            Uygulama arayüzünü Kurumsal veya Cyberpunk tema arasında değiştirebilirsiniz.
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Şu anki tema: <span className="font-medium">{theme === 'corporate' ? 'Kurumsal' : 'Cyberpunk'}</span>
+                      </p>
+                    </div>
+                    <div>
+                      <Toggle 
+                        checked={theme === 'cyberpunk'}
+                        onChange={toggleTheme}
+                        labelLeft="Kurumsal"
+                        labelRight="Cyberpunk"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </GlassCard>

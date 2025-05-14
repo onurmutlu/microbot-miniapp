@@ -67,15 +67,24 @@ export default function LoginGuard({ children }: LoginGuardProps) {
           localStorage.setItem('telegram_user', JSON.stringify(telegramUser));
           localStorage.setItem('is_miniapp_session', 'true');
           
-          // Login fonksiyonuna gönderilecek veriler
+          // Login fonksiyonuna gönderilecek veriler - kapsamlı veri gönderiyoruz
           const loginData = { 
             initData: initData || '',
             initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
-            user: telegramUser
+            user: telegramUser,
+            // Ek debug bilgileri
+            sessionInfo: {
+              userAgent: navigator.userAgent,
+              timestamp: Date.now(),
+              isWebView: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
+              referrer: document.referrer,
+              screenWidth: window.screen.width,
+              screenHeight: window.screen.height
+            }
           };
           
           try {
-            console.log('[LoginGuard] MiniApp verisi ile giriş deneniyor');
+            console.log('[LoginGuard] MiniApp verisi ile giriş deneniyor:', loginData);
             const success = await login(loginData);
             
             if (success) {

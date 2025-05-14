@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { setCredentials, setLoading, setError, clearError } from '../store/slices/authSlice';
@@ -233,8 +233,16 @@ export const useAuth = () => {
         
         try {
           // Backend bağlantısını dene (sınırlı süreyle)
-          const response = await api.post('/api/auth/telegram-login', telegramData, {
-            timeout: 5000 // 5 saniye timeout ile backend bağlantı denemesi
+          console.log('[Auth] Backend endpoint URL:', `${api.defaults.baseURL}/api/auth/telegram-login`);
+          console.log('[Auth] Gönderilen veri:', JSON.stringify(telegramData, null, 2));
+          
+          // İstek yaparken doğru endpoint kullanıldığından emin oluyoruz
+          const response = await api.post('/auth/telegram-login', telegramData, {
+            timeout: 10000, // 10 saniye timeout ile backend bağlantı denemesi
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Info': 'MiniApp-Auth'
+            }
           });
           
           // Backend yanıtı başarılı
@@ -310,10 +318,15 @@ export const useAuth = () => {
       // Gerçek backend giriş işlemi (burası normal web arayüzü için)
       try {
         console.log('[Auth] Backend\'e giriş isteği gönderiliyor:', telegramData);
+        console.log('[Auth] Backend endpoint URL:', `${api.defaults.baseURL}/auth/telegram-login`);
         
         // Telegram Auth verilerini backend'e gönder - Direct object gönder
-        const response = await api.post('/api/auth/telegram-login', telegramData, {
-          timeout: 8000 // 8 saniye timeout
+        const response = await api.post('/auth/telegram-login', telegramData, {
+          timeout: 10000, // 10 saniye timeout
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Debug-Info': 'Web-Auth'
+          }
         });
         
         if (!response.data) {

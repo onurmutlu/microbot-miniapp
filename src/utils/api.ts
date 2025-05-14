@@ -1,11 +1,21 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import Telegram from '@twa-dev/sdk'
-import { toast } from 'react-toastify'
 import { getTestMode } from './testMode'
+import { logService } from '../services/logService';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// API_BASE_URL'yi düzelterek direkt domain kullanıyoruz
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://microbot-api.siyahkare.com';
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 1000; // ms
+
+// Global Telegram tipi tanımlaması
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: any;
+    };
+  }
+}
 
 // TypeScript için genişletilmiş tip tanımlamaları
 declare module 'axios' {
@@ -34,7 +44,7 @@ interface ExtendedAxiosError extends AxiosError {
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 5000,
+  timeout: 10000, // 10 saniye
   headers: {
     'Content-Type': 'application/json'
   }
@@ -79,6 +89,22 @@ api.interceptors.request.use(
       config.headers['X-Test-Mode'] = 'true'
     }
     
+    // Debugging için istek URL'sini logla
+    console.log(`[API] ${config.method?.toUpperCase() || 'REQUEST'} ${getFullUrl(config.url || '')}`);
+    
+    // Log servisine isteği logla
+    const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+    config.headers['X-Request-ID'] = requestId;
+    
+    logService.info('HTTP', `${config.method?.toUpperCase() || 'REQUEST'} ${getFullUrl(config.url || '')}`, {
+      requestId,
+      url: getFullUrl(config.url || ''),
+      method: config.method?.toUpperCase(),
+      headers: config.headers,
+      data: config.data,
+      params: config.params
+    });
+    
     // Yeniden deneme sayacı ekle (yoksa)
     if (config.retryAttempt === undefined) {
       config.retryAttempt = 0;
@@ -88,16 +114,133 @@ api.interceptors.request.use(
   },
   (error) => {
     console.error('İstek Hatası:', error)
+    logService.error('HTTP', 'İstek Hatası', { error: error.message });
     return Promise.reject(error)
   }
 )
 
 // Yanıt interceptor'ı
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Yanıtı logla
+    const requestId = response.config.headers['X-Request-ID'];
+    const url = response.config.url || '';
+    const method = response.config.method?.toUpperCase() || '';
+    
+    // API yanıtlarını logla
+    logService.debug('HTTP', `${method} ${url} ${response.status}`, {
+      requestId,
+      status: response.status,
+      statusText: response.statusText,
+      data: response.data,
+      duration: response.headers['x-response-time'] || 'unknown',
+      url,
+      method
+    });
+    
+    return response;
+  },
   async (error: ExtendedAxiosError) => {
     // Konfigürasyon nesnesini al veya oluştur
     const config = error.config || {} as InternalAxiosRequestConfig;
+    
+    // Hata detaylarını logla
+    const requestId = config.headers?.['X-Request-ID'] || 'unknown';
+    const url = config.url || '';
+    const method = config.method?.toUpperCase() || '';
+    
+    logService.error('HTTP', `${method} ${url} ${error.response?.status || 'NETWORK_ERROR'}`, {
+      requestId,
+      url,
+      method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      errorMessage: error.message
+    });
+    
+    // 401 Unauthorized hatası kontrolü ve işleme
+    if (error.response?.status === 401) {
+      console.error('[API] 401 Unauthorized hatası:', error.response?.data);
+      
+      // Token geçersiz veya süresi dolmuş
+      const currentToken = localStorage.getItem('access_token');
+      if (currentToken) {
+        console.log('[API] Token mevcut ama 401 hatası alındı, yeniden giriş gerekebilir');
+        
+        // İnit Data yeniden kontrol et
+        if (window.Telegram?.WebApp?.initData && !config.url?.includes('/auth/')) {
+          console.log('[API] MiniApp oturumu algılandı, token yenileme deneniyor');
+          
+          try {
+            // İnit data ile yeniden giriş dene
+            const authResponse = await api.post('/auth/telegram-login', {
+              initData: window.Telegram.WebApp.initData,
+              initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
+              user: window.Telegram.WebApp.initDataUnsafe?.user
+            }, { 
+              headers: { 'X-Retry-Auth': 'true' } 
+            });
+            
+            if (authResponse.data?.token) {
+              // Yeni token al ve kaydet
+              console.log('[API] Yeni token alındı, oturum yenileniyor');
+              localStorage.setItem('access_token', authResponse.data.token);
+              
+              // Orijinal isteği yeni token ile tekrarla
+              config.headers = config.headers || {};
+              config.headers.Authorization = `Bearer ${authResponse.data.token}`;
+              
+              // İsteği tekrarla
+              return axios(config);
+            }
+          } catch (retryError) {
+            console.error('[API] Token yenileme başarısız:', retryError);
+          }
+        }
+        
+        // Yeniden doğrulama başarısız olduysa, offline mode'u etkinleştir
+        if (window.Telegram?.WebApp?.initData) {
+          console.log('[API] MiniApp offline modu etkinleştiriliyor');
+          localStorage.setItem('offline_mode', 'true');
+          
+          // Kullanıcı bilgisini al
+          const userData = window.Telegram.WebApp.initDataUnsafe?.user;
+          if (userData) {
+            const offlineToken = `offline-${Date.now()}`;
+            localStorage.setItem('access_token', offlineToken);
+            localStorage.setItem('telegram_user', JSON.stringify(userData));
+            
+            // Events
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: 'access_token',
+              newValue: offlineToken
+            }));
+            
+            // Orijinal isteği token ile tekrarla
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${offlineToken}`;
+            config.headers['X-Offline-Mode'] = 'true';
+            
+            // İsteği tekrarla (offline mod için)
+            if (!config.url?.includes('/auth/')) {
+              return axios(config);
+            }
+          }
+        } else {
+          // MiniApp değilse veya doğrudan login sayfasına yönlendir
+          console.log('[API] Oturum geçersiz, login sayfasına yönlendirilecek');
+          
+          // LocalStorage'den token'ı temizle
+          localStorage.removeItem('access_token');
+          
+          // Sayfa yeniden yüklenmeden kullanıcıyı login sayfasına yönlendir
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
+      }
+    }
     
     // Test modunda mock API yanıtları
     if (getTestMode()) {
@@ -200,38 +343,6 @@ api.interceptors.response.use(
       
       // Diğer API istekleri için de mock yanıtlar eklenebilir
     }
-    
-    // Test modunda 401 hatası için özel işlem
-    if (getTestMode() && error.response?.status === 401) {
-      console.warn('Test modu: 401 Unauthorized hatası ele alınıyor')
-      return Promise.reject(error)
-    }
-
-    // 401 hatası durumunda Telegram init data ile otomatik login
-    if (error.response?.status === 401) {
-      try {
-        localStorage.removeItem('access_token')
-        const initData = Telegram.initData
-
-        if (!initData) {
-          toast.error('Oturum süresi doldu. Lütfen tekrar giriş yapın.')
-          return Promise.reject(error)
-        }
-
-        const response = await axios.post(`${API_BASE_URL}/auth/telegram`, { initData })
-        if (response.data.token) {
-          localStorage.setItem('access_token', response.data.token)
-          const originalRequest = error.config
-          if (originalRequest && originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${response.data.token}`
-            return axios(originalRequest)
-          }
-        }
-      } catch (loginError) {
-        console.error('Telegram login hatası:', loginError)
-        toast.error('Oturum süresi doldu. Lütfen tekrar giriş yapın.')
-      }
-    }
 
     // Ağ hatası veya timeout durumunda yeniden deneme
     if (!error.response && (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') && 
@@ -317,20 +428,52 @@ export const standardizeResponse = <T = any>(response: AxiosResponse): StandardR
 export const initAuth = async (): Promise<boolean> => {
   try {
     // Telegram initData'yı kullanarak authentication
-    const initData = Telegram.initData
-    if (initData) {
-      const response = await axios.post(`${api.defaults.baseURL}/auth/telegram`, {
-        initData
-      })
-      if (response.data.token) {
-        localStorage.setItem('access_token', response.data.token)
-        return true
-      }
+    // Telegram SDK veya window.Telegram.WebApp'dan initData'yı al
+    let initData = null;
+    let userData = null;
+    
+    // Önce window.Telegram.WebApp'ı kontrol et
+    if (window.Telegram?.WebApp?.initData) {
+      console.log('[API] initAuth - window.Telegram.WebApp.initData kullanılıyor');
+      initData = window.Telegram.WebApp.initData;
+      userData = window.Telegram.WebApp.initDataUnsafe?.user || {};
+    } 
+    // Sonra Telegram SDK'yı kontrol et
+    else if (Telegram?.initData) {
+      console.log('[API] initAuth - Telegram SDK initData kullanılıyor');
+      initData = Telegram.initData;
     }
-    return false
+    
+    if (initData) {
+      console.log('[API] initAuth - initData var, kimlik doğrulama isteği gönderiliyor');
+      console.log('[API] initAuth - URL:', `${api.defaults.baseURL}/auth/telegram-login`);
+      
+      // Auth isteği gönder
+      const response = await api.post('/auth/telegram-login', {
+        initData,
+        initDataUnsafe: window.Telegram?.WebApp?.initDataUnsafe || {},
+        user: userData
+      }, {
+        timeout: 10000, // 10 saniye
+        headers: {
+          'X-Debug-Info': 'InitAuth-Function'
+        }
+      });
+      
+      if (response.data?.token) {
+        console.log('[API] initAuth - Kimlik doğrulama başarılı, token alındı');
+        localStorage.setItem('access_token', response.data.token);
+        return true;
+      } else {
+        console.error('[API] initAuth - Token alınamadı:', response.data);
+      }
+    } else {
+      console.error('[API] initAuth - initData bulunamadı');
+    }
+    return false;
   } catch (error) {
-    console.error('Authentication hatası:', error)
-    return false
+    console.error('[API] Authentication hatası:', error);
+    return false;
   }
 }
 

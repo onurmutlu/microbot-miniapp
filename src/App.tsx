@@ -1,11 +1,11 @@
-import React, { useEffect, Suspense, useState, useCallback } from 'react';
+import React, { useEffect, Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Provider, useSelector, useDispatch } from 'react-redux';
+import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer, toast } from 'react-toastify';
-import { store, RootState } from './store';
+import { store } from './store';
 import { useAuth } from './hooks/useAuth';
-import { checkEnv, isMiniApp } from './utils/env';
+import { isMiniApp } from './utils/env';
 import { setTestMode, getTestMode } from './utils/testMode';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -18,6 +18,7 @@ import DMPanel from './pages/DMPanel';
 import SchedulerPage from './pages/SchedulerPage';
 import CronGuidePage from './pages/CronGuidePage';
 import Dashboard from './pages/Dashboard';
+import Statistics from './pages/Statistics';
 import UserSettings from './pages/UserSettings';
 import SystemStatus from './pages/SystemStatus';
 import SessionPage from './pages/SessionPage';
@@ -47,8 +48,11 @@ import { initTelegramApp } from './utils/telegramSDK';
 import MiniAppDemo from './components/MiniAppDemo';
 import ErrorReports from './pages/ErrorReports';
 import WebSocketManager from './pages/WebSocketManager';
-import { websocketService } from './services/websocket';
 import { apiService } from './services/api';
+import LogProvider from './providers/LogProvider';
+import AdminLogin from './pages/AdminLogin';
+import AdminLicenses from './pages/AdminLicenses';
+import AdminGuard from './components/AdminGuard';
 
 // QueryClient - React Query için
 const queryClient = new QueryClient({
@@ -116,7 +120,6 @@ if (import.meta.env.DEV) {
 
 // Ana uygulama rotaları
 const AppRoutes: React.FC = () => {
-  const dispatch = useDispatch();
   const { isConnected } = useWebSocketContext();
   const { isAuthenticated, isLoading, initializeAuth } = useAuth();
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>('online');
@@ -215,6 +218,12 @@ const AppRoutes: React.FC = () => {
                     </LoginGuard>
                   } />
                   
+                  <Route path="/statistics" element={
+                    <LoginGuard>
+                      <Statistics />
+                    </LoginGuard>
+                  } />
+                  
                   <Route path="/message-templates" element={
                     <LoginGuard>
                       <MessageTemplates />
@@ -302,6 +311,22 @@ const AppRoutes: React.FC = () => {
                     <LoginGuard>
                       <GroupAnalysisPage />
                     </LoginGuard>
+                  } />
+                  
+                  {/* Admin sayfaları */}
+                  <Route path="/admin-login" element={<AdminLogin />} />
+                  <Route path="/admin/licenses" element={
+                    <AdminGuard>
+                      <AdminLicenses />
+                    </AdminGuard>
+                  } />
+                  <Route path="/admin/users" element={
+                    <AdminGuard requiredRole="superadmin">
+                      <div className="min-h-screen bg-gray-900 text-white p-8">
+                        <h1 className="text-2xl font-bold mb-4">Admin Kullanıcı Yönetimi</h1>
+                        <p>Bu özellik yakında eklenecek.</p>
+                      </div>
+                    </AdminGuard>
                   } />
                   
                   {/* Bulunamayan sayfalar */}
@@ -438,25 +463,27 @@ const App: React.FC = () => {
           <SessionProvider>
             <ActiveSessionProvider>
               <WebSocketProvider>
-                <Router>
-                  <Routes>
-                    {/* Telegram MiniApp Demo Sayfası */}
-                    <Route path="/miniapp" element={<MiniAppDemo />} />
+                <LogProvider enableConsoleOverride={false} showLogButton={true}>
+                  <Router>
+                    <Routes>
+                      {/* Telegram MiniApp Demo Sayfası */}
+                      <Route path="/miniapp" element={<MiniAppDemo />} />
+                      
+                      {/* Diğer tüm sayfalar */}
+                      <Route path="/*" element={<AppRoutes />} />
+                    </Routes>
                     
-                    {/* Diğer tüm sayfalar */}
-                    <Route path="/*" element={<AppRoutes />} />
-                  </Routes>
-                  
-                  {/* Toast mesajları */}
-                  <ToastContainer 
-                    position="bottom-right" 
-                    theme="dark"
-                    autoClose={3000}
-                    newestOnTop
-                    closeOnClick
-                    pauseOnHover
-                  />
-                </Router>
+                    {/* Toast mesajları */}
+                    <ToastContainer 
+                      position="bottom-right" 
+                      theme="dark"
+                      autoClose={3000}
+                      newestOnTop
+                      closeOnClick
+                      pauseOnHover
+                    />
+                  </Router>
+                </LogProvider>
               </WebSocketProvider>
             </ActiveSessionProvider>
           </SessionProvider>

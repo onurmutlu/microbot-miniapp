@@ -3,11 +3,11 @@ import { toast } from './toast';
 import { getTestMode } from './testMode';
 
 // API_BASE_URL'yi api.ts'den alıyoruz
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://microbot-api.siyahkare.com';
 // WebSocket protokolünü sayfanın protokolüne göre ayarla
 const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-const WS_BASE_URL = `${protocol}${import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:8000'}/ws`;
-const CONNECTION_TIMEOUT = 5000; // 5 saniye
+const WS_BASE_URL = `${protocol}${API_BASE_URL.replace(/^https?:\/\//, '')}/ws`;
+const CONNECTION_TIMEOUT = 8000; // 8 saniye
 
 export async function testApiConnection(): Promise<boolean> {
   // Test modunda çalışıyorsa bağlantı testini atla
@@ -17,7 +17,17 @@ export async function testApiConnection(): Promise<boolean> {
   }
 
   try {
-    const response = await axios.get('/health');
+    console.log(`API bağlantı testi yapılıyor: ${API_BASE_URL}/health`);
+    
+    // Doğrudan tam URL ile istek yapıyoruz
+    const response = await axios.get(`${API_BASE_URL}/health`, {
+      timeout: CONNECTION_TIMEOUT,
+      headers: {
+        'X-Connection-Test': 'true',
+      }
+    });
+    
+    console.log('API bağlantı testi yanıtı:', response.status, response.statusText);
     return response.status === 200;
   } catch (error) {
     console.error('API bağlantı hatası:', error);
@@ -64,6 +74,12 @@ export async function testWebSocketConnection(): Promise<boolean> {
 
       ws.onopen = () => {
         console.log('WebSocket bağlantısı başarılı');
+        // Test mesajı gönder
+        try {
+          ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        } catch (err) {
+          console.warn('WebSocket test mesajı gönderilemedi:', err);
+        }
         resolveOnce(true);
       };
 

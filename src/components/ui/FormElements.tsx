@@ -152,6 +152,8 @@ interface ToggleProps {
   checked: boolean;
   onChange: () => void;
   label?: string;
+  labelLeft?: string;
+  labelRight?: string;
   disabled?: boolean;
 }
 
@@ -159,10 +161,20 @@ export const Toggle: React.FC<ToggleProps> = ({
   checked,
   onChange,
   label,
+  labelLeft,
+  labelRight,
   disabled = false
 }) => {
   return (
     <div className="flex items-center">
+      {labelLeft && (
+        <span className={`text-sm font-medium mr-2 ${
+          disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'
+        }`}>
+          {labelLeft}
+        </span>
+      )}
+    
       <button
         type="button"
         onClick={onChange}
@@ -185,6 +197,15 @@ export const Toggle: React.FC<ToggleProps> = ({
           `}
         />
       </button>
+      
+      {labelRight && (
+        <span className={`ml-2 text-sm font-medium ${
+          disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-200'
+        }`}>
+          {labelRight}
+        </span>
+      )}
+      
       {label && (
         <span
           className={`ml-3 text-sm font-medium ${

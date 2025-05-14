@@ -222,11 +222,31 @@ export default function LoginPage() {
         return
       }
       
+      // Debug için WebApp bilgilerini loglama
+      console.log('[LoginPage] WebApp bilgileri:', {
+        initDataLength: window.Telegram.WebApp.initData?.length || 0,
+        user: window.Telegram.WebApp.initDataUnsafe?.user || null,
+        startParam: window.Telegram.WebApp.initDataUnsafe?.start_param || null
+      });
+      
       // Mini App verileriyle oturum aç
-      const success = await login({ 
+      const loginData = {
         initData: window.Telegram.WebApp.initData,
-        initDataUnsafe: window.Telegram.WebApp.initDataUnsafe
-      })
+        initDataUnsafe: window.Telegram.WebApp.initDataUnsafe,
+        user: window.Telegram.WebApp.initDataUnsafe?.user || {},
+        // Ek debug bilgileri
+        sessionInfo: {
+          userAgent: navigator.userAgent,
+          timestamp: Date.now(),
+          isWebView: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent),
+          referrer: document.referrer,
+          screenWidth: window.screen.width,
+          screenHeight: window.screen.height
+        }
+      };
+      
+      console.log('[LoginPage] Login isteği yapılıyor:', loginData);
+      const success = await login(loginData);
       
       if (success) {
         toast.success('Mini App girişi başarılı!')
